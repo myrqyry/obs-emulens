@@ -1,39 +1,90 @@
-cmake_minimum_required(VERSION 3.28...3.30)
+cmake_minimum_required(VERSION 3.16...3.22)
 
-include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/common/bootstrap.cmake" NO_POLICY_SCOPE)
+# Set project name and version
+project(obs-emulens VERSION 1.0.0 LANGUAGES C CXX)
 
-project(${_name} VERSION ${_version})
+# Set C/C++ standards
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-option(ENABLE_FRONTEND_API "Use obs-frontend-api for UI functionality" OFF)
-option(ENABLE_QT "Use Qt functionality" OFF)
+# Set module path for custom find modules
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
 
-include(compilerconfig)
-include(defaults)
-include(helpers)
+# Find OBS libraries
+find_package(OBS REQUIRED)
 
-add_library(${CMAKE_PROJECT_NAME} MODULE)
-
-find_package(libobs REQUIRED)
-target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::libobs)
-
-if(ENABLE_FRONTEND_API)
-  find_package(obs-frontend-api REQUIRED)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE OBS::obs-frontend-api)
+if(NOT OBS_FOUND)
+    message(FATAL_ERROR "OBS development files not found. Please set OBS_INSTALL_PATH environment variable.")
 endif()
 
-if(ENABLE_QT)
-  find_package(Qt6 COMPONENTS Widgets Core)
-  target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE Qt6::Core Qt6::Widgets)
-  target_compile_options(
-    ${CMAKE_PROJECT_NAME}
-    PRIVATE $<$<C_COMPILER_ID:Clang,AppleClang>:-Wno-quoted-include-in-framework-header -Wno-comma>
-  )
-  set_target_properties(
-    ${CMAKE_PROJECT_NAME}
-    PROPERTIES AUTOMOC ON AUTOUIC ON AUTORCC ON
-  )
+# Set plugin installation paths
+if(WIN32)
+    set(OBS_PLUGIN_DESTINATION "obs-plugins/64bit")
+    set(OBS_PLUGIN_DATA_DESTINATION "data/obs-plugins/obs-emulens")
+elseif(APPLE)
+    set(OBS_PLUGIN_DESTINATION "obs-plugins")
+    set(OBS_PLUGIN_DATA_DESTINATION "data/obs/obs-plugins/obs-emulens")
+else() # Linux
+    set(OBS_PLUGIN_DESTINATION "lib/obs-plugins")
+    set(OBS_PLUGIN_DATA_DESTINATION "share/obs/obs-plugins/obs-emulens")
 endif()
 
-target_sources(${CMAKE_PROJECT_NAME} PRIVATE src/plugin-main.c)
+# Plugin target
+add_library(${PROJECT_NAME} MODULE)
 
-set_target_properties_plugin(${CMAKE_PROJECT_NAME} PROPERTIES OUTPUT_NAME ${_name})
+# Set output directory
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    PREFIX ""
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build"
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+)
+
+# Add source files
+target_sources(${PROJECT_NAME} PRIVATE
+    src/plugin-main.c
+    src/effects.c
+    src/effects.h
+)
+
+# Include directories
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${OBS_INCLUDE_DIRS}
+)
+
+# Link libraries
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    ${OBS_LIBRARIES}
+)
+
+# Install the plugin
+install(TARGETS ${PROJECT_NAME}
+    LIBRARY DESTINATION "${OBS_PLUGIN_DESTINATION}"
+    RUNTIME DESTINATION "${OBS_PLUGIN_DESTINATION}"
+)
+
+# Create data directory if it doesn't exist
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/data/shaders)
+
+# Install shaders
+install(DIRECTORY data/
+    DESTINATION "${OBS_PLUGIN_DATA_DESTINATION}"
+    FILES_MATCHING PATTERN "*.shader"
+)
+
+# Copy shaders to build directory
+file(GLOB SHADER_FILES "data/shaders/*.shader")
+foreach(SHADER ${SHADER_FILES})
+    get_filename_component(SHADER_NAME ${SHADER} NAME)
+    configure_file(
+        ${SHADER}
+        ${CMAKE_CURRENT_BINARY_DIR}/data/shaders/${SHADER_NAME}
+        COPYONLY
+    )
+endforeach()
