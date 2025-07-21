@@ -33,14 +33,13 @@
     },
     "platformConfig": {
         "macos": {
-            "bundleId": "com.myrqyry.obs-emulens"
+            "bundleId": "com.example.plugintemplate-for-obs"
         }
     },
-    "name": "obs-emulens",
-    "displayName": "EmuLens for OBS",
-    "version": "0.1.0",
-    "author": "myrqyry",
-    "website": "https://github.com/myrqyry/obs-emulens",
-    "email": "",
-    "description": "Camera lens artifact FX for adding cinematographic touch to obs sources"
+    "name": "plugintemplate-for-obs",
+    "displayName": "Plugin Template for OBS",
+    "version": "1.0.0",
+    "author": "Your Name Here",
+    "website": "https://example.com",
+    "email": "me@example.com"
 }
