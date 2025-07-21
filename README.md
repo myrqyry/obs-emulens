@@ -12,12 +12,12 @@ The plugin template is meant to be used as a starting point for OBS Studio plugi
 
 | Platform  | Tool   |
 |-----------|--------|
-| Windows   | Visal Studio 17 2022 |
-| macOS     | XCode 16.0 |
-| Windows, macOS  | CMake 3.30.5 |
-| Ubuntu 24.04 | CMake 3.28.3 |
+| Windows   | Visual Studio 17 2022 |
+| macOS     | Xcode 16.1 |
+| Windows, macOS  | CMake 3.30.0 |
+| Ubuntu 24.04 | CMake 3.30.0 |
 | Ubuntu 24.04 | `ninja-build` |
-| Ubuntu 24.04 | `pkg-config`
+| Ubuntu 24.04 | `pkg-config` |
 | Ubuntu 24.04 | `build-essential` |
 
 ## Quick Start

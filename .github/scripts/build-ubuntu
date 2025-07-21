@@ -167,6 +167,9 @@ ${_usage_host:-}"
 
   if [[ ${host_os} == ubuntu ]] {
     autoload -Uz setup_ubuntu && setup_ubuntu
+    log_group "Installing obs-studio build dependencies..."
+    sudo apt-get install --yes --no-install-recommends \
+      libobs-dev
   }
 
   local product_name
