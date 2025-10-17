@@ -168,27 +168,32 @@ void effect_update(void *data, obs_data_t *settings)
 void effect_video_render(void *data, gs_effect_t *effect)
 {
     effect_data_t *ed = data;
-    if (!ed || !ed->effect) return;
-
-    // Set shader parameters
-    if (ed->uv_size_param) {
-        uint32_t width = obs_source_get_width(obs_filter_get_target(ed->context));
-        uint32_t height = obs_source_get_height(obs_filter_get_target(ed->context));
-        gs_effect_set_vec2(ed->uv_size_param, &(struct vec2){(float)width, (float)height});
+    if (!ed || !ed->effect) {
+        obs_source_skip_video_filter(ed->context);
+        return;
     }
 
-    if (ed->elapsed_time_param) {
-        gs_effect_set_float(ed->elapsed_time_param, ed->elapsed_time);
+    obs_source_t *target = obs_filter_get_target(ed->context);
+    if (!target) {
+        obs_source_skip_video_filter(ed->context);
+        return;
     }
 
-    // Set the input texture
-    if (ed->image_param) {
-        gs_effect_set_texture(ed->image_param, gs_texrender_get_texture(gs_texrender_create(GS_RGBA, GS_ZS_NONE)));
-    }
+    if (obs_source_process_filter_begin(ed->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING)) {
+        // Set shader parameters
+        if (ed->uv_size_param) {
+            uint32_t width = obs_source_get_width(target);
+            uint32_t height = obs_source_get_height(target);
+            gs_effect_set_vec2(ed->uv_size_param, &(struct vec2){(float)width, (float)height});
+        }
 
-    // Apply the effect
-    while (gs_effect_loop(ed->effect, "Draw")) {
-        gs_draw_sprite(NULL, 0, 0, 0);
+        if (ed->elapsed_time_param) {
+            gs_effect_set_float(ed->elapsed_time_param, ed->elapsed_time);
+        }
+
+        // Apply the effect
+        obs_source_process_filter_tech_draw(ed->context, ed->effect, "Draw");
+        obs_source_process_filter_end(ed->context);
     }
 }
 
