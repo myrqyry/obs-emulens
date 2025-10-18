@@ -58,6 +58,9 @@ const effect_info_t liteleke_effect = {
     .shader_path = "shaders/light-leak.shader",
     .create_effect = effect_create,
     .destroy_effect = effect_destroy,
+    .update_effect = effect_update,
+    .video_render = effect_video_render,
+    .video_tick = effect_video_tick,
     .get_properties = effect_get_properties,
     .get_defaults = effect_get_defaults
 };
@@ -70,6 +73,9 @@ const effect_info_t handheld_effect = {
     .shader_path = "shaders/handheld.shader",
     .create_effect = effect_create,
     .destroy_effect = effect_destroy,
+    .update_effect = effect_update,
+    .video_render = effect_video_render,
+    .video_tick = effect_video_tick,
     .get_properties = effect_get_properties,
     .get_defaults = effect_get_defaults
 };
@@ -82,6 +88,9 @@ const effect_info_t bokeh_effect = {
     .shader_path = "shaders/bokeh.shader",
     .create_effect = effect_create,
     .destroy_effect = effect_destroy,
+    .update_effect = effect_update,
+    .video_render = effect_video_render,
+    .video_tick = effect_video_tick,
     .get_properties = effect_get_properties,
     .get_defaults = effect_get_defaults
 };
