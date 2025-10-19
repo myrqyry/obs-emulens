@@ -31,26 +31,18 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
-// Structure to hold effect registration data
-struct obs_source_info effect_info = {
-    .id = "", // Will be set for each effect
-    .type = OBS_SOURCE_TYPE_FILTER,
-    .output_flags = OBS_SOURCE_VIDEO,
-    .get_name = get_effect_name,
-    .create = effect_create,
-    .destroy = effect_destroy,
-    .update = effect_update,
-    .video_render = effect_video_render,
-    .video_tick = effect_video_tick,
-};
-
 bool obs_module_load(void)
 {
     obs_log(LOG_INFO, "Loading OBS Emulens plugin");
     
-    for (size_t i = 0; i < NUM_EFFECTS; i++) {
+    for (size_t i = 0; i < num_effects; i++) {
+        const effect_info_t *effect_info = effects[i];
+        if (!effect_info) {
+            continue; // Skip if the effect info is missing
+        }
+
         struct obs_source_info info = {
-            .id = effects[i]->id,
+            .id = effect_info->id,
             .type = OBS_SOURCE_TYPE_FILTER,
             .output_flags = OBS_SOURCE_VIDEO,
             .get_name = get_effect_name,
@@ -60,7 +52,8 @@ bool obs_module_load(void)
             .video_render = effect_video_render,
             .video_tick = effect_video_tick,
             .get_properties = effect_properties,
-            .get_defaults = effect_defaults
+            .get_defaults = effect_defaults,
+            .type_data = (void*)effect_info // Pass effect info to callbacks
         };
         obs_register_source(&info);
     }
