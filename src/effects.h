@@ -45,6 +45,10 @@ typedef struct {
     void (*get_defaults)(obs_data_t *settings);
 } effect_info_t;
 
+// Function declarations
+obs_properties_t *effect_properties(void *data);
+void effect_defaults(obs_data_t *settings);
+
 // Declare effects
 extern const effect_info_t star_burst_effect;
 extern const effect_info_t liteleke_effect;

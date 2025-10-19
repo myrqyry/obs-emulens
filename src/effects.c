@@ -32,8 +32,8 @@ void effect_destroy(void *data);
 void effect_update(void *data, obs_data_t *settings);
 void effect_video_render(void *data, gs_effect_t *effect);
 void effect_video_tick(void *data, float seconds);
-obs_properties_t *effect_get_properties(void *data);
-void effect_get_defaults(obs_data_t *settings);
+obs_properties_t *effect_properties(void *data);
+void effect_defaults(obs_data_t *settings);
 
 // Effect information for Star Burst
 const effect_info_t star_burst_effect = {
@@ -46,8 +46,8 @@ const effect_info_t star_burst_effect = {
     .update_effect = effect_update,
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
-    .get_properties = effect_get_properties,
-    .get_defaults = effect_get_defaults
+    .get_properties = effect_properties,
+    .get_defaults = effect_defaults
 };
 
 // Effect information for Liteleke
@@ -61,8 +61,8 @@ const effect_info_t liteleke_effect = {
     .update_effect = effect_update,
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
-    .get_properties = effect_get_properties,
-    .get_defaults = effect_get_defaults
+    .get_properties = effect_properties,
+    .get_defaults = effect_defaults
 };
 
 // Effect information for Handheld
@@ -76,8 +76,8 @@ const effect_info_t handheld_effect = {
     .update_effect = effect_update,
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
-    .get_properties = effect_get_properties,
-    .get_defaults = effect_get_defaults
+    .get_properties = effect_properties,
+    .get_defaults = effect_defaults
 };
 
 // Effect information for Bokeh
@@ -91,8 +91,8 @@ const effect_info_t bokeh_effect = {
     .update_effect = effect_update,
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
-    .get_properties = effect_get_properties,
-    .get_defaults = effect_get_defaults
+    .get_properties = effect_properties,
+    .get_defaults = effect_defaults
 };
 
 // Array of all available effects
@@ -215,7 +215,7 @@ void effect_video_tick(void *data, float seconds)
     ed->elapsed_time += seconds;
 }
 
-obs_properties_t *effect_get_properties(void *data)
+obs_properties_t *effect_properties(void *data)
 {
     const effect_info_t *info = data;
     obs_properties_t *props = obs_properties_create();
@@ -229,7 +229,7 @@ obs_properties_t *effect_get_properties(void *data)
     return props;
 }
 
-void effect_get_defaults(obs_data_t *settings)
+void effect_defaults(obs_data_t *settings)
 {
     obs_data_set_default_double(settings, "rotation", 0.0);
     obs_data_set_default_double(settings, "intensity", 1.0);
