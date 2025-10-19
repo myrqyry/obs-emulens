@@ -27,15 +27,6 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 
 #include "effects.h"
 
-// Forward declarations from effects.c
-const char *get_effect_name(void *type_data);
-void *effect_create(obs_data_t *settings, obs_source_t *source);
-void effect_destroy(void *data);
-void effect_update(void *data, obs_data_t *settings);
-void effect_video_render(void *data, gs_effect_t *effect);
-void effect_video_tick(void *data, float seconds);
-obs_properties_t *effect_properties(void *data);
-void effect_defaults(obs_data_t *settings);
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
