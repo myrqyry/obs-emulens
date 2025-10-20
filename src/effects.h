@@ -20,6 +20,14 @@ typedef struct gs_effect gs_effect_t;
 struct gs_effect_param;
 typedef struct gs_effect_param gs_eparam_t;
 
+// Enum for effect types
+typedef enum {
+    EFFECT_STAR_BURST,
+    EFFECT_LITELEKE,
+    EFFECT_HANDHELD,
+    EFFECT_BOKEH
+} effect_type_t;
+
 // Structure to hold effect instance data
 typedef struct {
     obs_source_t *context;
@@ -27,7 +35,18 @@ typedef struct {
     gs_eparam_t *image_param;
     gs_eparam_t *uv_size_param;
     gs_eparam_t *elapsed_time_param;
+    // Cache effect-specific parameters
+    gs_eparam_t *intensity_param;
+    gs_eparam_t *rotation_param;
+    gs_eparam_t *color_param;
+    gs_eparam_t *scale_param;
+    gs_eparam_t *speed_param;
+    gs_eparam_t *shake_param;
+    gs_eparam_t *zoom_param;
+    gs_eparam_t *radius_param;
+    gs_eparam_t *samples_param;
     float elapsed_time;
+    effect_type_t type;
 } effect_data_t;
 
 // Structure to hold effect information
@@ -49,6 +68,12 @@ typedef struct {
 obs_properties_t *effect_properties(void *data);
 void effect_defaults(obs_data_t *settings);
 
+// Declarations for effect-specific default functions
+void star_burst_defaults(obs_data_t *settings);
+void liteleke_defaults(obs_data_t *settings);
+void handheld_defaults(obs_data_t *settings);
+void bokeh_defaults(obs_data_t *settings);
+
 // Declare effects
 extern const effect_info_t star_burst_effect;
 extern const effect_info_t liteleke_effect;
@@ -56,7 +81,6 @@ extern const effect_info_t handheld_effect;
 extern const effect_info_t bokeh_effect;
 
 // Array of all available effects
-#define NUM_EFFECTS 4
 extern const effect_info_t *effects[];
 extern const size_t num_effects;
 

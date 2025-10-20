@@ -3,6 +3,7 @@
 #include <graphics/graphics.h>
 #include <util/platform.h>
 #include <util/dstr.h>
+#include <math.h>
 
 // Helper function to load shader from file
 gs_effect_t *load_shader_effect(const char *shader_path)
@@ -19,6 +20,8 @@ gs_effect_t *load_shader_effect(const char *shader_path)
 
     if (!effect) {
         blog(LOG_ERROR, "Failed to load shader: %s", error_string ? error_string : "Unknown error");
+        bfree(error_string);
+    } else if (error_string) {
         bfree(error_string);
     }
 
@@ -47,7 +50,7 @@ const effect_info_t star_burst_effect = {
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
     .get_properties = effect_properties,
-    .get_defaults = effect_defaults
+    .get_defaults = star_burst_defaults
 };
 
 // Effect information for Liteleke
@@ -62,7 +65,7 @@ const effect_info_t liteleke_effect = {
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
     .get_properties = effect_properties,
-    .get_defaults = effect_defaults
+    .get_defaults = liteleke_defaults
 };
 
 // Effect information for Handheld
@@ -77,7 +80,7 @@ const effect_info_t handheld_effect = {
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
     .get_properties = effect_properties,
-    .get_defaults = effect_defaults
+    .get_defaults = handheld_defaults
 };
 
 // Effect information for Bokeh
@@ -92,7 +95,7 @@ const effect_info_t bokeh_effect = {
     .video_render = effect_video_render,
     .video_tick = effect_video_tick,
     .get_properties = effect_properties,
-    .get_defaults = effect_defaults
+    .get_defaults = bokeh_defaults
 };
 
 // Array of all available effects
@@ -137,6 +140,27 @@ void *effect_create(obs_data_t *settings, obs_source_t *source)
     data->uv_size_param = gs_effect_get_param_by_name(data->effect, "uv_size");
     data->elapsed_time_param = gs_effect_get_param_by_name(data->effect, "elapsed_time");
 
+    // Set effect type for optimized lookups
+    if (strcmp(info->id, "star_burst_effect") == 0) {
+        data->type = EFFECT_STAR_BURST;
+        data->intensity_param = gs_effect_get_param_by_name(data->effect, "intensity");
+        data->rotation_param = gs_effect_get_param_by_name(data->effect, "rotation");
+        data->color_param = gs_effect_get_param_by_name(data->effect, "color");
+    } else if (strcmp(info->id, "liteleke_effect") == 0) {
+        data->type = EFFECT_LITELEKE;
+        data->intensity_param = gs_effect_get_param_by_name(data->effect, "intensity");
+        data->scale_param = gs_effect_get_param_by_name(data->effect, "scale");
+    } else if (strcmp(info->id, "handheld_effect") == 0) {
+        data->type = EFFECT_HANDHELD;
+        data->speed_param = gs_effect_get_param_by_name(data->effect, "shake_speed");
+        data->shake_param = gs_effect_get_param_by_name(data->effect, "shake_intensity");
+        data->zoom_param = gs_effect_get_param_by_name(data->effect, "zoom_amount");
+    } else if (strcmp(info->id, "bokeh_effect") == 0) {
+        data->type = EFFECT_BOKEH;
+        data->radius_param = gs_effect_get_param_by_name(data->effect, "radius");
+        data->samples_param = gs_effect_get_param_by_name(data->effect, "samples");
+    }
+
     return data;
 }
 
@@ -160,64 +184,72 @@ void effect_update(void *data, obs_data_t *settings)
     const effect_info_t *info = obs_source_get_type_data(ed->context);
     if (!info) return;
 
-    // Common parameters
-    gs_eparam_t *intensity_param = gs_effect_get_param_by_name(ed->effect, "intensity");
-    if (intensity_param) {
-        float intensity = (float)obs_data_get_double(settings, "intensity");
-        gs_effect_set_float(intensity_param, intensity);
-    }
-    
     // Effect-specific parameters
-    if (strcmp(info->id, "star_burst_effect") == 0) {
-        gs_eparam_t *rotation_param = gs_effect_get_param_by_name(ed->effect, "rotation");
-        if (rotation_param) {
-            float rotation = (float)obs_data_get_double(settings, "rotation");
-            gs_effect_set_float(rotation_param, rotation);
+    switch (ed->type) {
+    case EFFECT_STAR_BURST: {
+        if (ed->intensity_param) {
+            float intensity = (float)obs_data_get_double(settings, "intensity");
+            intensity = fmax(0.0f, fmin(10.0f, intensity));
+            gs_effect_set_float(ed->intensity_param, intensity);
         }
-
-        gs_eparam_t *color_param = gs_effect_get_param_by_name(ed->effect, "color");
-        if (color_param) {
+        if (ed->rotation_param) {
+            float rotation = (float)obs_data_get_double(settings, "rotation");
+            rotation = fmax(0.0f, fmin(360.0f, rotation));
+            gs_effect_set_float(ed->rotation_param, rotation);
+        }
+        if (ed->color_param) {
             uint32_t color = (uint32_t)obs_data_get_int(settings, "color");
             struct vec4 color_vec;
             vec4_from_rgba(&color_vec, color);
-            gs_effect_set_vec4(color_param, &color_vec);
+            color_vec.w = 1.0f;
+            gs_effect_set_vec4(ed->color_param, &color_vec);
         }
-    } else if (strcmp(info->id, "liteleke_effect") == 0) {
-        gs_eparam_t *scale_param = gs_effect_get_param_by_name(ed->effect, "scale");
-        if (scale_param) {
+        break;
+    }
+    case EFFECT_LITELEKE: {
+        if (ed->intensity_param) {
+            float intensity = (float)obs_data_get_double(settings, "intensity");
+            intensity = fmax(0.0f, fmin(1.0f, intensity));
+            gs_effect_set_float(ed->intensity_param, intensity);
+        }
+        if (ed->scale_param) {
             float scale = (float)obs_data_get_double(settings, "scale");
-            gs_effect_set_float(scale_param, scale);
+            scale = fmax(0.0f, fmin(5.0f, scale));
+            gs_effect_set_float(ed->scale_param, scale);
         }
-    } else if (strcmp(info->id, "handheld_effect") == 0) {
-        gs_eparam_t *speed_param = gs_effect_get_param_by_name(ed->effect, "shake_speed");
-        if (speed_param) {
+        break;
+    }
+    case EFFECT_HANDHELD: {
+        if (ed->speed_param) {
             float speed = (float)obs_data_get_double(settings, "shake_speed");
-            gs_effect_set_float(speed_param, speed);
+            speed = fmax(0.0f, fmin(20.0f, speed));
+            gs_effect_set_float(ed->speed_param, speed);
         }
-
-        gs_eparam_t *shake_param = gs_effect_get_param_by_name(ed->effect, "shake_intensity");
-        if (shake_param) {
+        if (ed->shake_param) {
             float shake = (float)obs_data_get_double(settings, "shake_intensity");
-            gs_effect_set_float(shake_param, shake);
+            shake = fmax(0.0f, fmin(1.0f, shake));
+            gs_effect_set_float(ed->shake_param, shake);
         }
-
-        gs_eparam_t *zoom_param = gs_effect_get_param_by_name(ed->effect, "zoom_amount");
-        if (zoom_param) {
+        if (ed->zoom_param) {
             float zoom = (float)obs_data_get_double(settings, "zoom_amount");
-            gs_effect_set_float(zoom_param, zoom);
+            zoom = fmax(0.0f, fmin(0.5f, zoom));
+            gs_effect_set_float(ed->zoom_param, zoom);
         }
-    } else if (strcmp(info->id, "bokeh_effect") == 0) {
-        gs_eparam_t *radius_param = gs_effect_get_param_by_name(ed->effect, "radius");
-        if (radius_param) {
+        break;
+    }
+    case EFFECT_BOKEH: {
+        if (ed->radius_param) {
             float radius = (float)obs_data_get_double(settings, "radius");
-            gs_effect_set_float(radius_param, radius);
+            radius = fmax(0.0f, fmin(50.0f, radius));
+            gs_effect_set_float(ed->radius_param, radius);
         }
-
-        gs_eparam_t *samples_param = gs_effect_get_param_by_name(ed->effect, "samples");
-        if (samples_param) {
+        if (ed->samples_param) {
             int samples = (int)obs_data_get_int(settings, "samples");
-            gs_effect_set_int(samples_param, samples);
+            samples = (samples < 1) ? 1 : ((samples > 64) ? 64 : samples);
+            gs_effect_set_int(ed->samples_param, samples);
         }
+        break;
+    }
     }
 }
 
@@ -225,7 +257,9 @@ void effect_video_render(void *data, gs_effect_t *effect)
 {
     effect_data_t *ed = data;
     if (!ed || !ed->effect) {
-        obs_source_skip_video_filter(ed->context);
+        if (ed) {
+            obs_source_skip_video_filter(ed->context);
+        }
         return;
     }
 
@@ -295,22 +329,34 @@ obs_properties_t *effect_properties(void *data)
     return props;
 }
 
-void effect_defaults(obs_data_t *settings)
+void star_burst_defaults(obs_data_t *settings)
 {
-    // Star Burst
     obs_data_set_default_double(settings, "rotation", 0.0);
     obs_data_set_default_double(settings, "intensity", 1.0);
     obs_data_set_default_int(settings, "color", 0xFFFFFFFF);
+}
 
-    // Light Leak
+void liteleke_defaults(obs_data_t *settings)
+{
+    obs_data_set_default_double(settings, "intensity", 1.0);
     obs_data_set_default_double(settings, "scale", 1.0);
+}
 
-    // Handheld Camera
+void handheld_defaults(obs_data_t *settings)
+{
     obs_data_set_default_double(settings, "shake_speed", 10.0);
     obs_data_set_default_double(settings, "shake_intensity", 0.05);
     obs_data_set_default_double(settings, "zoom_amount", 0.02);
+}
 
-    // Bokeh
+void bokeh_defaults(obs_data_t *settings)
+{
     obs_data_set_default_double(settings, "radius", 10.0);
     obs_data_set_default_int(settings, "samples", 32);
+}
+
+void effect_defaults(obs_data_t *settings)
+{
+    // This function is now a placeholder and can be removed if all effects have their own defaults.
+    // For now, we'll leave it empty.
 }
