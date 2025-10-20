@@ -33,7 +33,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 bool obs_module_load(void)
 {
-    obs_log(LOG_INFO, "Loading OBS Emulens plugin");
+    blog(LOG_INFO, "Loading OBS Emulens plugin");
     
     for (size_t i = 0; i < num_effects; i++) {
         const effect_info_t *effect_info = effects[i];
