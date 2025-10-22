@@ -48,5 +48,5 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
     sleep 10
 done
 
-echo "Failed to install packages after $MAX_ATTEMPTS attempts"
+echo "Failed to install packages after $MAX_ATTEMPTS attempts" >&2
 exit 1
