@@ -58,15 +58,8 @@ for dependency (${dependencies}) {
 
 log_debug "List of dependencies to install: ${install_list}"
 if (( ${#install_list} )) {
-  if (( ! ${+CI} )) log_warning 'Dependency installation via apt may require elevated privileges'
-
-  local -a apt_args=(
-    ${CI:+-y}
-    --no-install-recommends
-  )
-  if (( _loglevel == 0 )) apt_args+=(--quiet)
-
-  sudo apt-get ${apt_args} install ${install_list}
+  log_info "Installing dependencies: ${install_list}"
+  ${SCRIPT_HOME}/install-deps-ubuntu.sh ${install_list}
 }
 
 rehash

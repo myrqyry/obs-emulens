@@ -95,7 +95,12 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "RelWithDebInfo",
         "CMAKE_COMPILE_WARNING_AS_ERROR": true,
-        "ENABLE_CCACHE": true
+        "ENABLE_CCACHE": true,
+        "CMAKE_PREFIX_PATH": "/usr/lib/x86_64-linux-gnu/cmake/libobs",
+        "Qt5_DIR": "/usr/lib/x86_64-linux-gnu/cmake/Qt5"
+      },
+      "environment": {
+        "CCACHE_DIR": "$env{GITHUB_WORKSPACE}/.ccache"
       }
     }
   ],
