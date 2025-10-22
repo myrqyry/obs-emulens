@@ -43,7 +43,7 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         exit 0
     fi
     ATTEMPT=$((ATTEMPT + 1))
-    echo "Installation attempt $ATTEMPT failed, retrying..."
+    echo "Installation attempt $ATTEMPT failed, retrying..." >&2
     sudo apt-get clean
     sleep 10
 done
