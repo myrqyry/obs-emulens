@@ -27,9 +27,14 @@ while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
         break
     fi
     ATTEMPT=$((ATTEMPT + 1))
-    echo "Update attempt $ATTEMPT failed, retrying..."
+    echo "Update attempt $ATTEMPT failed, retrying..." >&2
     sleep 5
 done
+
+if [ $ATTEMPT -ge $MAX_ATTEMPTS ]; then
+    echo "Failed to update package lists after $MAX_ATTEMPTS attempts." >&2
+    exit 1
+fi
 
 # Install packages with retry
 ATTEMPT=0
