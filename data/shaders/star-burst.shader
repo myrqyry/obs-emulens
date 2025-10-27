@@ -98,6 +98,19 @@ uniform bool AnamorphicRays<
     string group = "Advanced";
 > = false;
 
+#define MAX_RAY_SAMPLES 12
+#define DEFAULT_RAY_SAMPLES 8
+#define MIN_RAY_SAMPLES 4
+
+// Add user parameter
+uniform int ray_sample_count <
+    string label = "Ray Sample Quality";
+    string widget_type = "slider";
+    int minimum = MIN_RAY_SAMPLES;
+    int maximum = MAX_RAY_SAMPLES;
+    int step = 1;
+> = DEFAULT_RAY_SAMPLES;
+
 // --- NEW Parameters for Ray Appearance & Core Glow ---
 uniform float CoreGlowIntensity <
     string label = "✨ Core Glow Intensity";
@@ -175,7 +188,7 @@ float4 mainImage(VertData v_in) : TARGET {
         }
         
         float raySamplesAccumulator = 0.0;
-        int sampleCount = 12; // Keep this moderate for performance
+        int sampleCount = ray_sample_count;
         
         // Sample along the ray in ONE direction (from current pixel outwards)
         // To detect if current pixel is on a ray, we should sample *towards* potential sources.

@@ -326,8 +326,14 @@ float4 mainImage(VertData v_in) : TARGET
     float2 cell_uv = texcoord * cells; 
     float2 cell_id = floor(cell_uv); 
 
-    for (int iy = -2; iy <= 2; ++iy) { 
-        for (int ix = -2; ix <= 2; ++ix) {
+    // Reduce search area based on particle density
+    float search_radius = min(2.0, cells / 5.0);
+    int search_int = int(ceil(search_radius));
+
+    for (int iy = -search_int; iy <= search_int; ++iy) {
+        for (int ix = -search_int; ix <= search_int; ++ix) {
+            if (abs(ix) + abs(iy) > search_int) continue; // Skip corners
+
             float2 neighbor_cell_id = cell_id + float2(ix, iy);
             
             float2 particle_rand_seed = neighbor_cell_id; 

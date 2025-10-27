@@ -6,9 +6,26 @@
 #include <util/dstr.h>
 #include <stddef.h> // For size_t
 
+#define MAX_EFFECT_NAME_LENGTH 64
+#define MAX_SHADER_PATH_LENGTH 256
+#define DEFAULT_ELAPSED_TIME_STEP 0.016f  // ~60 FPS
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// Create consistent error handling macros
+#define LOG_AND_RETURN_NULL(msg, ...)                                  \
+	do {                                                           \
+		blog(LOG_ERROR, msg, ##__VA_ARGS__);                   \
+		return NULL;                                           \
+	} while (0)
+
+#define LOG_AND_RETURN_VOID(msg, ...)                                  \
+	do {                                                           \
+		blog(LOG_ERROR, msg, ##__VA_ARGS__);                   \
+		return;                                                \
+	} while (0)
 
 // Forward declarations
 struct obs_source;
@@ -51,17 +68,18 @@ typedef struct {
 
 // Structure to hold effect information
 typedef struct {
-    const char *id;
-    const char *name;
-    const char *description;
-    const char *shader_path;
-    void *(*create_effect)(obs_data_t *settings, obs_source_t *source);
-    void (*destroy_effect)(void *data);
-    void (*update_effect)(void *data, obs_data_t *settings);
-    void (*video_render)(void *data, gs_effect_t *effect);
-    void (*video_tick)(void *data, float seconds);
-    obs_properties_t *(*get_properties)(void *data);
-    void (*get_defaults)(obs_data_t *settings);
+	const char *id;
+	const char *name;
+	const char *description;
+	const char *shader_path;
+	effect_type_t type; // Add this field
+	void *(*create_effect)(obs_data_t *settings, obs_source_t *source);
+	void (*destroy_effect)(void *data);
+	void (*update_effect)(void *data, obs_data_t *settings);
+	void (*video_render)(void *data, gs_effect_t *effect);
+	void (*video_tick)(void *data, float seconds);
+	obs_properties_t *(*get_properties)(void *data);
+	void (*get_defaults)(obs_data_t *settings);
 } effect_info_t;
 
 // Function declarations
