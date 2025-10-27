@@ -33,7 +33,16 @@ OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
 bool obs_module_load(void)
 {
-    blog(LOG_INFO, "Loading OBS Emulens plugin");
+    blog(LOG_INFO, "Loading OBS Emulens plugin (v%s)", PROJECT_VERSION);
+
+    // Validate effect registry before registration
+    for (size_t i = 0; i < num_effects; i++) {
+        const effect_info_t *effect_info = effects[i];
+        if (!effect_info || !effect_info->id || !effect_info->name || !effect_info->shader_path) {
+            blog(LOG_ERROR, "Invalid effect info at index %zu", i);
+            return false;
+        }
+    }
     
     for (size_t i = 0; i < num_effects; i++) {
         const effect_info_t *effect_info = effects[i];

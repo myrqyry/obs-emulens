@@ -27,6 +27,20 @@ if(MSVC)
   endif()
 else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+  if(NOT MSVC)
+    add_compile_options(
+      -Wshadow -Wcast-align -Wcast-qual
+      -Wformat=2 -Wfloat-equal
+      -Wpointer-arith -Wwrite-strings
+    )
+
+    # Enable sanitizers in debug builds
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+      add_compile_options(-fsanitize=address,undefined)
+      add_link_options(-fsanitize=address,undefined)
+    endif()
+  endif()
+
   if(CMAKE_BUILD_TYPE STREQUAL "Debug")
     add_compile_options(-O0 -g3 -fno-omit-frame-pointer)
   else()

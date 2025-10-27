@@ -4,15 +4,45 @@
 #include <util/platform.h>
 #include <util/dstr.h>
 #include <math.h>
+#include <string.h>
+
+// Helper function to validate shader path to prevent directory traversal
+static bool is_valid_shader_path(const char *path)
+{
+	if (!path || strlen(path) == 0)
+		return false;
+
+	// Check for directory traversal patterns
+	if (strstr(path, "..") || strstr(path, "//") || strchr(path, '\\') ||
+	    path[0] == '/') {
+		return false;
+	}
+
+	// Ensure it's in the shaders directory and has proper extension
+	if (strncmp(path, "shaders/", 8) != 0)
+		return false;
+
+	const char *ext = strrchr(path, '.');
+	if (!ext || strcmp(ext, ".shader") != 0)
+		return false;
+
+	return true;
+}
 
 // Helper function to load shader from file
 gs_effect_t *load_shader_effect(const char *shader_path)
 {
-    char *full_path = obs_module_file(shader_path);
-    if (!full_path) {
-        blog(LOG_ERROR, "Could not find shader file: %s", shader_path);
-        return NULL;
-    }
+	if (!is_valid_shader_path(shader_path)) {
+		blog(LOG_ERROR, "Invalid shader path: %s",
+		     shader_path ? shader_path : "NULL");
+		return NULL;
+	}
+
+	char *full_path = obs_module_file(shader_path);
+	if (!full_path) {
+		blog(LOG_ERROR, "Could not find shader file: %s", shader_path);
+		return NULL;
+	}
 
     char *error_string = NULL;
     gs_effect_t *effect = gs_effect_create_from_file(full_path, &error_string);
@@ -40,63 +70,64 @@ void effect_defaults(obs_data_t *settings);
 
 // Effect information for Star Burst
 const effect_info_t star_burst_effect = {
-    .id = "star_burst_effect",
-    .name = "Star Burst",
-    .description = "Creates dramatic star-shaped rays from bright light sources",
-    .shader_path = "shaders/star-burst.shader",
-    .create_effect = effect_create,
-    .destroy_effect = effect_destroy,
-    .update_effect = effect_update,
-    .video_render = effect_video_render,
-    .video_tick = effect_video_tick,
-    .get_properties = effect_properties,
-    .get_defaults = star_burst_defaults
-};
+	.id = "star_burst_effect",
+	.name = "Star Burst",
+	.description =
+		"Creates dramatic star-shaped rays from bright light sources",
+	.shader_path = "shaders/star-burst.shader",
+	.type = EFFECT_STAR_BURST,
+	.create_effect = effect_create,
+	.destroy_effect = effect_destroy,
+	.update_effect = effect_update,
+	.video_render = effect_video_render,
+	.video_tick = effect_video_tick,
+	.get_properties = effect_properties,
+	.get_defaults = star_burst_defaults};
 
 // Effect information for Liteleke
 const effect_info_t liteleke_effect = {
-    .id = "liteleke_effect",
-    .name = "Light Leak",
-    .description = "Adds organic light leak effects",
-    .shader_path = "shaders/light-leak.shader",
-    .create_effect = effect_create,
-    .destroy_effect = effect_destroy,
-    .update_effect = effect_update,
-    .video_render = effect_video_render,
-    .video_tick = effect_video_tick,
-    .get_properties = effect_properties,
-    .get_defaults = liteleke_defaults
-};
+	.id = "liteleke_effect",
+	.name = "Light Leak",
+	.description = "Adds organic light leak effects",
+	.shader_path = "shaders/light-leak.shader",
+	.type = EFFECT_LITELEKE,
+	.create_effect = effect_create,
+	.destroy_effect = effect_destroy,
+	.update_effect = effect_update,
+	.video_render = effect_video_render,
+	.video_tick = effect_video_tick,
+	.get_properties = effect_properties,
+	.get_defaults = liteleke_defaults};
 
 // Effect information for Handheld
 const effect_info_t handheld_effect = {
-    .id = "handheld_effect",
-    .name = "Handheld Camera",
-    .description = "Simulates handheld camera movement and breathing",
-    .shader_path = "shaders/handheld.shader",
-    .create_effect = effect_create,
-    .destroy_effect = effect_destroy,
-    .update_effect = effect_update,
-    .video_render = effect_video_render,
-    .video_tick = effect_video_tick,
-    .get_properties = effect_properties,
-    .get_defaults = handheld_defaults
-};
+	.id = "handheld_effect",
+	.name = "Handheld Camera",
+	.description = "Simulates handheld camera movement and breathing",
+	.shader_path = "shaders/handheld.shader",
+	.type = EFFECT_HANDHELD,
+	.create_effect = effect_create,
+	.destroy_effect = effect_destroy,
+	.update_effect = effect_update,
+	.video_render = effect_video_render,
+	.video_tick = effect_video_tick,
+	.get_properties = effect_properties,
+	.get_defaults = handheld_defaults};
 
 // Effect information for Bokeh
 const effect_info_t bokeh_effect = {
-    .id = "bokeh_effect",
-    .name = "Bokeh",
-    .description = "Creates beautiful bokeh light effects",
-    .shader_path = "shaders/bokeh.shader",
-    .create_effect = effect_create,
-    .destroy_effect = effect_destroy,
-    .update_effect = effect_update,
-    .video_render = effect_video_render,
-    .video_tick = effect_video_tick,
-    .get_properties = effect_properties,
-    .get_defaults = bokeh_defaults
-};
+	.id = "bokeh_effect",
+	.name = "Bokeh",
+	.description = "Creates beautiful bokeh light effects",
+	.shader_path = "shaders/bokeh.shader",
+	.type = EFFECT_BOKEH,
+	.create_effect = effect_create,
+	.destroy_effect = effect_destroy,
+	.update_effect = effect_update,
+	.video_render = effect_video_render,
+	.video_tick = effect_video_tick,
+	.get_properties = effect_properties,
+	.get_defaults = bokeh_defaults};
 
 // Array of all available effects
 const effect_info_t *effects[] = {
@@ -119,21 +150,26 @@ const char *get_effect_name(void *type_data)
 
 void *effect_create(obs_data_t *settings, obs_source_t *source)
 {
-    const effect_info_t *info = obs_source_get_type_data(source);
-    if (!info) {
-        return NULL; // Should not happen if registered correctly
-    }
+	const effect_info_t *info = obs_source_get_type_data(source);
+	if (!info || !info->shader_path)
+		LOG_AND_RETURN_NULL(
+			"Invalid effect info or missing shader path");
 
-    effect_data_t *data = bzalloc(sizeof(effect_data_t));
-    data->context = source;
-    data->elapsed_time = 0.0f;
+	effect_data_t *data = bzalloc(sizeof(effect_data_t));
+	if (!data)
+		LOG_AND_RETURN_NULL(
+			"Failed to allocate memory for effect data");
 
-    // Load the shader effect
-    data->effect = load_shader_effect(info->shader_path);
-    if (!data->effect) {
-        bfree(data);
-        return NULL;
-    }
+	data->context = source;
+	data->elapsed_time = 0.0f;
+
+	// Load the shader effect
+	data->effect = load_shader_effect(info->shader_path);
+	if (!data->effect) {
+		bfree(data);
+		LOG_AND_RETURN_NULL("Failed to load shader: %s",
+				    info->shader_path);
+	}
 
     // Get shader parameters
     data->image_param = gs_effect_get_param_by_name(data->effect, "image");
@@ -141,24 +177,27 @@ void *effect_create(obs_data_t *settings, obs_source_t *source)
     data->elapsed_time_param = gs_effect_get_param_by_name(data->effect, "elapsed_time");
 
     // Set effect type for optimized lookups
-    if (strcmp(info->id, "star_burst_effect") == 0) {
-        data->type = EFFECT_STAR_BURST;
+    data->type = info->type;
+
+    switch (data->type) {
+    case EFFECT_STAR_BURST:
         data->intensity_param = gs_effect_get_param_by_name(data->effect, "intensity");
         data->rotation_param = gs_effect_get_param_by_name(data->effect, "rotation");
         data->color_param = gs_effect_get_param_by_name(data->effect, "color");
-    } else if (strcmp(info->id, "liteleke_effect") == 0) {
-        data->type = EFFECT_LITELEKE;
+        break;
+    case EFFECT_LITELEKE:
         data->intensity_param = gs_effect_get_param_by_name(data->effect, "intensity");
         data->scale_param = gs_effect_get_param_by_name(data->effect, "scale");
-    } else if (strcmp(info->id, "handheld_effect") == 0) {
-        data->type = EFFECT_HANDHELD;
+        break;
+    case EFFECT_HANDHELD:
         data->speed_param = gs_effect_get_param_by_name(data->effect, "shake_speed");
         data->shake_param = gs_effect_get_param_by_name(data->effect, "shake_intensity");
         data->zoom_param = gs_effect_get_param_by_name(data->effect, "zoom_amount");
-    } else if (strcmp(info->id, "bokeh_effect") == 0) {
-        data->type = EFFECT_BOKEH;
+        break;
+    case EFFECT_BOKEH:
         data->radius_param = gs_effect_get_param_by_name(data->effect, "radius");
         data->samples_param = gs_effect_get_param_by_name(data->effect, "samples");
+        break;
     }
 
     return data;
@@ -191,7 +230,9 @@ void effect_update(void *data, obs_data_t *settings)
             float intensity = (float)obs_data_get_double(settings, "intensity");
             intensity = fmax(0.0f, fmin(10.0f, intensity));
             gs_effect_set_float(ed->intensity_param, intensity);
-        }
+        } else {
+		blog(LOG_WARNING, "Intensity parameter not found in shader");
+	}
         if (ed->rotation_param) {
             float rotation = (float)obs_data_get_double(settings, "rotation");
             rotation = fmax(0.0f, fmin(360.0f, rotation));
@@ -211,7 +252,9 @@ void effect_update(void *data, obs_data_t *settings)
             float intensity = (float)obs_data_get_double(settings, "intensity");
             intensity = fmax(0.0f, fmin(1.0f, intensity));
             gs_effect_set_float(ed->intensity_param, intensity);
-        }
+        } else {
+		blog(LOG_WARNING, "Intensity parameter not found in shader");
+	}
         if (ed->scale_param) {
             float scale = (float)obs_data_get_double(settings, "scale");
             scale = fmax(0.0f, fmin(5.0f, scale));
@@ -255,19 +298,22 @@ void effect_update(void *data, obs_data_t *settings)
 
 void effect_video_render(void *data, gs_effect_t *effect)
 {
-    effect_data_t *ed = data;
-    if (!ed || !ed->effect) {
-        if (ed) {
-            obs_source_skip_video_filter(ed->context);
-        }
-        return;
-    }
+	effect_data_t *ed = data;
+	if (!ed) {
+		LOG_AND_RETURN_VOID("Effect data is NULL in video_render");
+	}
 
-    obs_source_t *target = obs_filter_get_target(ed->context);
-    if (!target) {
-        obs_source_skip_video_filter(ed->context);
-        return;
-    }
+	if (!ed->effect) {
+		obs_source_skip_video_filter(ed->context);
+		LOG_AND_RETURN_VOID("Effect shader is NULL for effect type %d",
+				    ed->type);
+	}
+
+	obs_source_t *target = obs_filter_get_target(ed->context);
+	if (!target) {
+		obs_source_skip_video_filter(ed->context);
+		return;
+	}
 
     if (obs_source_process_filter_begin(ed->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING)) {
         // Set shader parameters
@@ -309,21 +355,26 @@ obs_properties_t *effect_properties(void *data)
     }
 
     obs_properties_t *props = obs_properties_create();
-    
-    if (strcmp(info->id, "star_burst_effect") == 0) {
+
+    switch (info->type) {
+    case EFFECT_STAR_BURST:
         obs_properties_add_float_slider(props, "rotation", "Rotation", 0.0, 360.0, 1.0);
         obs_properties_add_float_slider(props, "intensity", "Intensity", 0.0, 10.0, 0.1);
         obs_properties_add_color(props, "color", "Color");
-    } else if (strcmp(info->id, "liteleke_effect") == 0) {
+        break;
+    case EFFECT_LITELEKE:
         obs_properties_add_float_slider(props, "intensity", "Intensity", 0.0, 1.0, 0.05);
         obs_properties_add_float_slider(props, "scale", "Scale", 0.0, 5.0, 0.1);
-    } else if (strcmp(info->id, "handheld_effect") == 0) {
+        break;
+    case EFFECT_HANDHELD:
         obs_properties_add_float_slider(props, "shake_speed", "Shake Speed", 0.0, 20.0, 0.5);
         obs_properties_add_float_slider(props, "shake_intensity", "Shake Intensity", 0.0, 1.0, 0.05);
         obs_properties_add_float_slider(props, "zoom_amount", "Zoom Amount", 0.0, 0.5, 0.01);
-    } else if (strcmp(info->id, "bokeh_effect") == 0) {
+        break;
+    case EFFECT_BOKEH:
         obs_properties_add_float_slider(props, "radius", "Radius", 0.0, 50.0, 1.0);
         obs_properties_add_int_slider(props, "samples", "Samples", 1, 64, 1);
+        break;
     }
     
     return props;
