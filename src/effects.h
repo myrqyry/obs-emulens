@@ -1,5 +1,6 @@
 #pragma once
 
+#include <obs/obs.h>
 #include <graphics/graphics.h>
 #include <util/bmem.h>
 #include <util/platform.h>
@@ -9,6 +10,16 @@
 #define MAX_EFFECT_NAME_LENGTH 64
 #define MAX_SHADER_PATH_LENGTH 256
 #define DEFAULT_ELAPSED_TIME_STEP 0.016f  // ~60 FPS
+
+// Add to effects.h
+#define INTENSITY_MIN 0.0f
+#define INTENSITY_MAX 10.0f
+#define ROTATION_MIN 0.0f
+#define ROTATION_MAX 360.0f
+#define SCALE_MIN 0.0f
+#define SCALE_MAX 5.0f
+
+#define FLT_EPSILON 1.19209290E-07F
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,6 +75,18 @@ typedef struct {
     gs_eparam_t *samples_param;
     float elapsed_time;
     effect_type_t type;
+
+    // Cache previous values to avoid unnecessary GPU updates
+    float cached_intensity;
+    float cached_rotation;
+    uint32_t cached_color;
+    float cached_scale;
+    float cached_speed;
+    float cached_shake;
+    float cached_zoom;
+    float cached_radius;
+    int cached_samples;
+    bool values_dirty;
 } effect_data_t;
 
 // Structure to hold effect information
