@@ -26,14 +26,16 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include <stdbool.h>
 
 #include "effects.h"
+#include "plugin-support.h"
 
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
 
+
 bool obs_module_load(void)
 {
-    blog(LOG_INFO, "Loading OBS Emulens plugin (v%s)", PROJECT_VERSION);
+    blog(LOG_INFO, "Loading OBS Emulens plugin (v%s)", PLUGIN_VERSION);
 
     // Validate effect registry before registration
     for (size_t i = 0; i < num_effects; i++) {

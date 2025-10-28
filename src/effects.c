@@ -6,15 +6,19 @@
 #include <math.h>
 #include <string.h>
 
+#define MAX_SHADER_PATH_LENGTH 256
+
 // Helper function to validate shader path to prevent directory traversal
 static bool is_valid_shader_path(const char *path)
 {
-	if (!path || strlen(path) == 0)
+	if (!path || strlen(path) == 0 || strlen(path) > MAX_SHADER_PATH_LENGTH)
 		return false;
 
-	// Check for directory traversal patterns
+	// Check for directory traversal patterns (enhanced)
 	if (strstr(path, "..") || strstr(path, "//") || strchr(path, '\\') ||
-	    path[0] == '/') {
+	    path[0] == '/' || strstr(path, "./") || strstr(path, "/.") ||
+	    strstr(path, "%2e") ||
+	    strstr(path, "%2E")) { // URL encoded dots
 		return false;
 	}
 
@@ -24,6 +28,10 @@ static bool is_valid_shader_path(const char *path)
 
 	const char *ext = strrchr(path, '.');
 	if (!ext || strcmp(ext, ".shader") != 0)
+		return false;
+
+	// Additional check for null bytes (path truncation attack)
+	if (strlen(path) != strcspn(path, "\0"))
 		return false;
 
 	return true;
@@ -44,18 +52,22 @@ gs_effect_t *load_shader_effect(const char *shader_path)
 		return NULL;
 	}
 
-    char *error_string = NULL;
-    gs_effect_t *effect = gs_effect_create_from_file(full_path, &error_string);
-    bfree(full_path);
+	char *error_string = NULL;
+	gs_effect_t *effect =
+		gs_effect_create_from_file(full_path, &error_string);
+	bfree(full_path);
 
-    if (!effect) {
-        blog(LOG_ERROR, "Failed to load shader: %s", error_string ? error_string : "Unknown error");
-        bfree(error_string);
-    } else if (error_string) {
-        bfree(error_string);
-    }
+	if (!effect) {
+		blog(LOG_ERROR, "Failed to load shader: %s",
+		     error_string ? error_string : "Unknown error");
+	}
 
-    return effect;
+	// Always free error_string if it was allocated, regardless of success/failure
+	if (error_string) {
+		bfree(error_string);
+	}
+
+	return effect;
 }
 
 // Forward declarations
@@ -150,10 +162,12 @@ const char *get_effect_name(void *type_data)
 
 void *effect_create(obs_data_t *settings, obs_source_t *source)
 {
+	(void)settings;
 	const effect_info_t *info = obs_source_get_type_data(source);
 	if (!info || !info->shader_path)
 		LOG_AND_RETURN_NULL(
-			"Invalid effect info or missing shader path");
+			"Invalid effect info (info=%p) or missing shader path (%s)",
+			(void *)info, info ? info->shader_path : "NULL");
 
 	effect_data_t *data = bzalloc(sizeof(effect_data_t));
 	if (!data)
@@ -171,8 +185,22 @@ void *effect_create(obs_data_t *settings, obs_source_t *source)
 				    info->shader_path);
 	}
 
-    // Get shader parameters
-    data->image_param = gs_effect_get_param_by_name(data->effect, "image");
+	// After loading shader, validate required parameters exist
+	static const char *required_params[] = {"image", "uv_size",
+						"elapsed_time", NULL};
+	for (int i = 0; required_params[i]; i++) {
+		if (!gs_effect_get_param_by_name(data->effect,
+						 required_params[i])) {
+			blog(LOG_ERROR, "Shader missing required parameter: %s",
+			     required_params[i]);
+			gs_effect_destroy(data->effect);
+			bfree(data);
+			return NULL;
+		}
+	}
+
+	// Get shader parameters
+	data->image_param = gs_effect_get_param_by_name(data->effect, "image");
     data->uv_size_param = gs_effect_get_param_by_name(data->effect, "uv_size");
     data->elapsed_time_param = gs_effect_get_param_by_name(data->effect, "elapsed_time");
 
@@ -217,129 +245,194 @@ void effect_destroy(void *data)
 
 void effect_update(void *data, obs_data_t *settings)
 {
-    effect_data_t *ed = data;
-    if (!ed || !ed->effect) return;
+	effect_data_t *ed = data;
+	if (!ed || !ed->effect)
+		return;
 
-    const effect_info_t *info = obs_source_get_type_data(ed->context);
-    if (!info) return;
+	ed->values_dirty = false;
 
-    // Effect-specific parameters
-    switch (ed->type) {
-    case EFFECT_STAR_BURST: {
-        if (ed->intensity_param) {
-            float intensity = (float)obs_data_get_double(settings, "intensity");
-            intensity = fmax(0.0f, fmin(10.0f, intensity));
-            gs_effect_set_float(ed->intensity_param, intensity);
-        } else {
-		blog(LOG_WARNING, "Intensity parameter not found in shader");
+	// Effect-specific parameters
+	switch (ed->type) {
+	case EFFECT_STAR_BURST: {
+		float intensity =
+			(float)obs_data_get_double(settings, "intensity");
+		intensity = fmax(INTENSITY_MIN, fmin(INTENSITY_MAX, intensity));
+		if (ed->intensity_param && fabsf(ed->cached_intensity - intensity) > FLT_EPSILON) {
+			gs_effect_set_float(ed->intensity_param, intensity);
+			ed->cached_intensity = intensity;
+			ed->values_dirty = true;
+		}
+
+		float rotation =
+			(float)obs_data_get_double(settings, "rotation");
+		rotation = fmax(ROTATION_MIN, fmin(ROTATION_MAX, rotation));
+		if (ed->rotation_param && fabsf(ed->cached_rotation - rotation) > FLT_EPSILON) {
+			gs_effect_set_float(ed->rotation_param, rotation);
+			ed->cached_rotation = rotation;
+			ed->values_dirty = true;
+		}
+
+		uint32_t color = (uint32_t)obs_data_get_int(settings, "color");
+		if (ed->color_param && ed->cached_color != color) {
+			struct vec4 color_vec;
+			vec4_from_rgba(&color_vec, color);
+			color_vec.w = 1.0f;
+			gs_effect_set_vec4(ed->color_param, &color_vec);
+			ed->cached_color = color;
+			ed->values_dirty = true;
+		}
+		break;
 	}
-        if (ed->rotation_param) {
-            float rotation = (float)obs_data_get_double(settings, "rotation");
-            rotation = fmax(0.0f, fmin(360.0f, rotation));
-            gs_effect_set_float(ed->rotation_param, rotation);
-        }
-        if (ed->color_param) {
-            uint32_t color = (uint32_t)obs_data_get_int(settings, "color");
-            struct vec4 color_vec;
-            vec4_from_rgba(&color_vec, color);
-            color_vec.w = 1.0f;
-            gs_effect_set_vec4(ed->color_param, &color_vec);
-        }
-        break;
-    }
-    case EFFECT_LITELEKE: {
-        if (ed->intensity_param) {
-            float intensity = (float)obs_data_get_double(settings, "intensity");
-            intensity = fmax(0.0f, fmin(1.0f, intensity));
-            gs_effect_set_float(ed->intensity_param, intensity);
-        } else {
-		blog(LOG_WARNING, "Intensity parameter not found in shader");
+	case EFFECT_LITELEKE: {
+		float intensity =
+			(float)obs_data_get_double(settings, "intensity");
+		intensity = fmax(0.0f, fmin(1.0f, intensity));
+		if (ed->intensity_param && fabsf(ed->cached_intensity - intensity) > FLT_EPSILON) {
+			gs_effect_set_float(ed->intensity_param, intensity);
+			ed->cached_intensity = intensity;
+			ed->values_dirty = true;
+		}
+
+		float scale = (float)obs_data_get_double(settings, "scale");
+		scale = fmax(SCALE_MIN, fmin(SCALE_MAX, scale));
+		if (ed->scale_param && fabsf(ed->cached_scale - scale) > FLT_EPSILON) {
+			gs_effect_set_float(ed->scale_param, scale);
+			ed->cached_scale = scale;
+			ed->values_dirty = true;
+		}
+		break;
 	}
-        if (ed->scale_param) {
-            float scale = (float)obs_data_get_double(settings, "scale");
-            scale = fmax(0.0f, fmin(5.0f, scale));
-            gs_effect_set_float(ed->scale_param, scale);
-        }
-        break;
-    }
-    case EFFECT_HANDHELD: {
-        if (ed->speed_param) {
-            float speed = (float)obs_data_get_double(settings, "shake_speed");
-            speed = fmax(0.0f, fmin(20.0f, speed));
-            gs_effect_set_float(ed->speed_param, speed);
-        }
-        if (ed->shake_param) {
-            float shake = (float)obs_data_get_double(settings, "shake_intensity");
-            shake = fmax(0.0f, fmin(1.0f, shake));
-            gs_effect_set_float(ed->shake_param, shake);
-        }
-        if (ed->zoom_param) {
-            float zoom = (float)obs_data_get_double(settings, "zoom_amount");
-            zoom = fmax(0.0f, fmin(0.5f, zoom));
-            gs_effect_set_float(ed->zoom_param, zoom);
-        }
-        break;
-    }
-    case EFFECT_BOKEH: {
-        if (ed->radius_param) {
-            float radius = (float)obs_data_get_double(settings, "radius");
-            radius = fmax(0.0f, fmin(50.0f, radius));
-            gs_effect_set_float(ed->radius_param, radius);
-        }
-        if (ed->samples_param) {
-            int samples = (int)obs_data_get_int(settings, "samples");
-            samples = (samples < 1) ? 1 : ((samples > 64) ? 64 : samples);
-            gs_effect_set_int(ed->samples_param, samples);
-        }
-        break;
-    }
-    }
+	case EFFECT_HANDHELD: {
+		float speed =
+			(float)obs_data_get_double(settings, "shake_speed");
+		speed = fmax(0.0f, fmin(20.0f, speed));
+		if (ed->speed_param && fabsf(ed->cached_speed - speed) > FLT_EPSILON) {
+			gs_effect_set_float(ed->speed_param, speed);
+			ed->cached_speed = speed;
+			ed->values_dirty = true;
+		}
+
+		float shake = (float)obs_data_get_double(settings,
+							"shake_intensity");
+		shake = fmax(0.0f, fmin(1.0f, shake));
+		if (ed->shake_param && fabsf(ed->cached_shake - shake) > FLT_EPSILON) {
+			gs_effect_set_float(ed->shake_param, shake);
+			ed->cached_shake = shake;
+			ed->values_dirty = true;
+		}
+
+		float zoom =
+			(float)obs_data_get_double(settings, "zoom_amount");
+		zoom = fmax(0.0f, fmin(0.5f, zoom));
+		if (ed->zoom_param && fabsf(ed->cached_zoom - zoom) > FLT_EPSILON) {
+			gs_effect_set_float(ed->zoom_param, zoom);
+			ed->cached_zoom = zoom;
+			ed->values_dirty = true;
+		}
+		break;
+	}
+	case EFFECT_BOKEH: {
+		float radius = (float)obs_data_get_double(settings, "radius");
+		radius = fmax(0.0f, fmin(50.0f, radius));
+		if (ed->radius_param && fabsf(ed->cached_radius - radius) > FLT_EPSILON) {
+			gs_effect_set_float(ed->radius_param, radius);
+			ed->cached_radius = radius;
+			ed->values_dirty = true;
+		}
+
+		int samples = (int)obs_data_get_int(settings, "samples");
+		samples = (samples < 1) ? 1 : ((samples > 64) ? 64 : samples);
+		if (ed->samples_param && ed->cached_samples != samples) {
+			gs_effect_set_int(ed->samples_param, samples);
+			ed->cached_samples = samples;
+			ed->values_dirty = true;
+		}
+		break;
+	}
+	}
 }
 
 void effect_video_render(void *data, gs_effect_t *effect)
 {
-	effect_data_t *ed = data;
-	if (!ed) {
-		LOG_AND_RETURN_VOID("Effect data is NULL in video_render");
-	}
+    (void)effect;
+    effect_data_t *ed = data;
+    if (!ed) {
+        LOG_AND_RETURN_VOID("Effect data is NULL in video_render");
+    }
 
-	if (!ed->effect) {
-		obs_source_skip_video_filter(ed->context);
-		LOG_AND_RETURN_VOID("Effect shader is NULL for effect type %d",
-				    ed->type);
-	}
+    if (!ed->effect) {
+        obs_source_skip_video_filter(ed->context);
+        LOG_AND_RETURN_VOID("Effect shader is NULL for effect type %d", ed->type);
+    }
 
-	obs_source_t *target = obs_filter_get_target(ed->context);
-	if (!target) {
-		obs_source_skip_video_filter(ed->context);
-		return;
-	}
+    obs_source_t *target = obs_filter_get_target(ed->context);
+    if (!target) {
+        obs_source_skip_video_filter(ed->context);
+        return;
+    }
 
     if (obs_source_process_filter_begin(ed->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING)) {
         // Set shader parameters
         if (ed->uv_size_param) {
             uint32_t width = obs_source_get_width(target);
             uint32_t height = obs_source_get_height(target);
-            gs_effect_set_vec2(ed->uv_size_param, &(struct vec2){(float)width, (float)height});
+            struct vec2 uv_size = {.x = (float)width, .y = (float)height};
+            gs_effect_set_vec2(ed->uv_size_param, &uv_size);
         }
 
         if (ed->elapsed_time_param) {
             gs_effect_set_float(ed->elapsed_time_param, ed->elapsed_time);
         }
 
-        // Apply the effect
-        obs_source_process_filter_tech_draw(ed->context, ed->effect, "Draw");
-        obs_source_process_filter_end(ed->context);
+        // Try the default technique first, fallback if it doesn't exist
+        gs_technique_t *tech = gs_effect_get_technique(ed->effect, "Draw");
+        if (!tech) {
+            // Try common alternative technique names
+            tech = gs_effect_get_technique(ed->effect, "Default");
+            if (!tech) {
+                tech = gs_effect_get_technique(ed->effect, 0); // Get first technique
+            }
+        }
+
+        if (tech) {
+            gs_technique_begin(tech);
+            gs_technique_begin_pass(tech, 0);
+
+            obs_source_process_filter_tech_end(ed->context, ed->effect, 0, 0, "Draw");
+
+            gs_technique_end_pass(tech);
+            gs_technique_end(tech);
+        } else {
+            blog(LOG_ERROR, "No valid technique found in shader for effect type %d", ed->type);
+            obs_source_skip_video_filter(ed->context);
+        }
+
+        obs_source_process_filter_end(ed->context, ed->effect, 0, 0);
     }
 }
 
 void effect_video_tick(void *data, float seconds)
 {
-    effect_data_t *ed = data;
-    if (!ed) return;
-    
-    // Update elapsed time for animations
-    ed->elapsed_time += seconds;
+	effect_data_t *ed = data;
+	if (!ed) {
+		blog(LOG_WARNING, "effect_video_tick called with null data");
+		return;
+	}
+
+	// Validate seconds parameter to prevent time corruption
+	if (!isfinite(seconds) || seconds < 0.0f || seconds > 1.0f) {
+		blog(LOG_WARNING,
+		     "Invalid seconds value in effect_video_tick: %f",
+		     seconds);
+		seconds = DEFAULT_ELAPSED_TIME_STEP; // Use fallback
+	}
+
+	ed->elapsed_time += seconds;
+
+	// Prevent time overflow issues
+	if (ed->elapsed_time > 86400.0f) { // 24 hours
+		ed->elapsed_time = fmod(ed->elapsed_time, 86400.0f);
+	}
 }
 
 obs_properties_t *effect_properties(void *data)
@@ -408,6 +501,7 @@ void bokeh_defaults(obs_data_t *settings)
 
 void effect_defaults(obs_data_t *settings)
 {
-    // This function is now a placeholder and can be removed if all effects have their own defaults.
-    // For now, we'll leave it empty.
+	(void)settings;
+	// This function is now a placeholder and can be removed if all effects have their own defaults.
+	// For now, we'll leave it empty.
 }

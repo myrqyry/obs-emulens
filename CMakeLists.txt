@@ -29,7 +29,7 @@ else()
   add_compile_options(-Wall -Wextra -Wpedantic -Werror)
   if(NOT MSVC)
     add_compile_options(
-      -Wshadow -Wcast-align -Wcast-qual
+      -Wshadow -Wcast-align
       -Wformat=2 -Wfloat-equal
       -Wpointer-arith -Wwrite-strings
     )
@@ -57,7 +57,7 @@ else()
 endif()
 
 # Set module path for custom find modules
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/CMake")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Find OBS libraries
 find_package(OBS REQUIRED)
@@ -93,10 +93,12 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 # Add source files
+configure_file(src/plugin-support.c.in src/plugin-support.c @ONLY)
 target_sources(${PROJECT_NAME} PRIVATE
     src/plugin-main.c
     src/effects.c
     src/effects.h
+	${CMAKE_CURRENT_BINARY_DIR}/src/plugin-support.c
 )
 
 # Include directories

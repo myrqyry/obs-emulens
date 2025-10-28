@@ -320,7 +320,7 @@ float4 mainImage(VertData v_in) : TARGET
 
     float time = elapsed_time * animation_speed;
 
-    float cells_raw = particle_density / 5.0;
+    float cells_raw = max(particle_density, 1.0) / 5.0; // Ensure minimum 1.0
     float cells = clamp(cells_raw, 3.0, 10.0); 
 
     float2 cell_uv = texcoord * cells; 
@@ -330,8 +330,17 @@ float4 mainImage(VertData v_in) : TARGET
     float search_radius = min(2.0, cells / 5.0);
     int search_int = int(ceil(search_radius));
 
-    for (int iy = -search_int; iy <= search_int; ++iy) {
-        for (int ix = -search_int; ix <= search_int; ++ix) {
+    // Calculate animated rotation outside the loop for efficiency
+    float static_rotation_rad = poly_rotation * (PI / 180.0);
+    float animated_rotation_rad = elapsed_time * poly_rotation_speed * (PI / 180.0);
+    float final_rotation_radians = static_rotation_rad + animated_rotation_rad;
+
+    int max_iterations = min(search_int * search_int, 16); // Limit max iterations
+    int current_iteration = 0;
+
+    for (int iy = -search_int; iy <= search_int && current_iteration < max_iterations; ++iy) {
+        for (int ix = -search_int; ix <= search_int && current_iteration < max_iterations; ++ix) {
+            current_iteration++;
             if (abs(ix) + abs(iy) > search_int) continue; // Skip corners
 
             float2 neighbor_cell_id = cell_id + float2(ix, iy);
@@ -399,11 +408,6 @@ float4 mainImage(VertData v_in) : TARGET
             
 // Calculate the desired width of the blurred edge based on the new uniform
             float calculated_blur_width = current_particle_size * bokeh_edge_softness;
-
-            // Calculate animated rotation (used by get_shape_mask)
-            float static_rotation_rad = poly_rotation * (PI / 180.0);
-            float animated_rotation_rad = elapsed_time * poly_rotation_speed * (PI / 180.0);
-            float final_rotation_radians = static_rotation_rad + animated_rotation_rad;
 
             float4 particle_contribution_this_iteration = float4(0.0, 0.0, 0.0, 0.0);
 
