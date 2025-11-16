@@ -53,7 +53,8 @@ typedef enum {
     EFFECT_STAR_BURST,
     EFFECT_LITELEKE,
     EFFECT_HANDHELD,
-    EFFECT_BOKEH
+    EFFECT_BOKEH,
+    EFFECT_STYLE_TRANSFER
 } effect_type_t;
 
 // Structure to hold effect instance data
@@ -114,6 +115,7 @@ void star_burst_defaults(obs_data_t *settings);
 void liteleke_defaults(obs_data_t *settings);
 void handheld_defaults(obs_data_t *settings);
 void bokeh_defaults(obs_data_t *settings);
+void style_transfer_defaults(obs_data_t *settings);
 
 // Declare effects
 extern const effect_info_t star_burst_effect;

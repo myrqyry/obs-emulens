@@ -141,12 +141,28 @@ const effect_info_t bokeh_effect = {
 	.get_properties = effect_properties,
 	.get_defaults = bokeh_defaults};
 
+// Effect information for Style Transfer
+const effect_info_t style_transfer_effect = {
+	.id = "style_transfer_effect",
+	.name = "Style Transfer",
+	.description = "Applies artistic style transfer to the video",
+	.shader_path = "shaders/style-transfer.shader",
+	.type = EFFECT_STYLE_TRANSFER,
+	.create_effect = effect_create,
+	.destroy_effect = effect_destroy,
+	.update_effect = effect_update,
+	.video_render = effect_video_render,
+	.video_tick = effect_video_tick,
+	.get_properties = effect_properties,
+	.get_defaults = style_transfer_defaults};
+
 // Array of all available effects
 const effect_info_t *effects[] = {
     &star_burst_effect,
     &liteleke_effect,
     &handheld_effect,
-    &bokeh_effect
+    &bokeh_effect,
+    &style_transfer_effect
 };
 
 const size_t num_effects = sizeof(effects) / sizeof(effects[0]);
@@ -225,6 +241,9 @@ void *effect_create(obs_data_t *settings, obs_source_t *source)
     case EFFECT_BOKEH:
         data->radius_param = gs_effect_get_param_by_name(data->effect, "radius");
         data->samples_param = gs_effect_get_param_by_name(data->effect, "samples");
+        break;
+    case EFFECT_STYLE_TRANSFER:
+        // No specific parameters to get for the pass-through shader yet
         break;
     }
 
@@ -349,6 +368,10 @@ void effect_update(void *data, obs_data_t *settings)
 		}
 		break;
 	}
+	case EFFECT_STYLE_TRANSFER: {
+		// No parameters to update yet
+		break;
+	}
 	}
 }
 
@@ -468,6 +491,9 @@ obs_properties_t *effect_properties(void *data)
         obs_properties_add_float_slider(props, "radius", "Radius", 0.0, 50.0, 1.0);
         obs_properties_add_int_slider(props, "samples", "Samples", 1, 64, 1);
         break;
+    case EFFECT_STYLE_TRANSFER:
+        // No properties to add yet
+        break;
     }
     
     return props;
@@ -497,6 +523,12 @@ void bokeh_defaults(obs_data_t *settings)
 {
     obs_data_set_default_double(settings, "radius", 10.0);
     obs_data_set_default_int(settings, "samples", 32);
+}
+
+void style_transfer_defaults(obs_data_t *settings)
+{
+    // No defaults to set yet
+    (void)settings;
 }
 
 void effect_defaults(obs_data_t *settings)
