@@ -57,13 +57,13 @@ bool obs_module_load(void)
             .type = OBS_SOURCE_TYPE_FILTER,
             .output_flags = OBS_SOURCE_VIDEO,
             .get_name = get_effect_name,
-            .create = effect_create,
-            .destroy = effect_destroy,
-            .update = effect_update,
-            .video_render = effect_video_render,
-            .video_tick = effect_video_tick,
-            .get_properties = effect_properties,
-            .get_defaults = effect_defaults,
+            .create = effect_info->create,
+            .destroy = effect_info->destroy,
+            .update = effect_info->update,
+            .video_render = effect_info->video_render,
+            .video_tick = effect_info->video_tick,
+            .get_properties = effect_info->get_properties,
+            .get_defaults = effect_info->get_defaults,
             .type_data = (void*)effect_info // Pass effect info to callbacks
         };
         obs_register_source(&info);
