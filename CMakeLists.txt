@@ -66,6 +66,21 @@ if(NOT OBS_FOUND)
     message(FATAL_ERROR "OBS development files not found. Please set OBS_INSTALL_PATH environment variable.")
 endif()
 
+# Frontend API Support
+option(ENABLE_FRONTEND_API "Enable OBS Frontend API" ON)
+
+if(ENABLE_FRONTEND_API)
+    find_library(OBS_FRONTEND_API_LIBRARY obs-frontend-api
+        PATHS /usr/lib /usr/local/lib
+    )
+    if(OBS_FRONTEND_API_LIBRARY)
+        message(STATUS "Found OBS Frontend API: ${OBS_FRONTEND_API_LIBRARY}")
+
+    else()
+        message(FATAL_ERROR "Could not find obs-frontend-api library. Is it installed?")
+    endif()
+endif()
+
 # Set plugin installation paths
 if(WIN32)
     set(OBS_PLUGIN_DESTINATION "obs-plugins/64bit")
@@ -111,6 +126,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
     ${OBS_LIBRARIES}
 )
+
+if(ENABLE_FRONTEND_API AND OBS_FRONTEND_API_LIBRARY)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${OBS_FRONTEND_API_LIBRARY})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_FRONTEND_API=1)
+endif()
 
 # Install the plugin
 install(TARGETS ${PROJECT_NAME}
