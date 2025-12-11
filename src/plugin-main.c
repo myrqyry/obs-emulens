@@ -28,10 +28,8 @@ with this program. If not, see <https://www.gnu.org/licenses/>
 #include "effects.h"
 #include "plugin-support.h"
 
-
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE(PLUGIN_NAME, "en-US")
-
 
 bool obs_module_load(void)
 {
@@ -49,7 +47,7 @@ bool obs_module_load(void)
     for (size_t i = 0; i < num_effects; i++) {
         const effect_info_t *effect_info = effects[i];
         if (!effect_info) {
-            continue; // Skip if the effect info is missing
+            continue; 
         }
 
         struct obs_source_info info = {
@@ -64,7 +62,7 @@ bool obs_module_load(void)
             .video_tick = effect_info->video_tick,
             .get_properties = effect_info->get_properties,
             .get_defaults = effect_info->get_defaults,
-            .type_data = (void*)effect_info // Pass effect info to callbacks
+            .type_data = (void*)effect_info
         };
         obs_register_source(&info);
     }

@@ -5,14 +5,18 @@
 #include <util/dstr.h>
 #include <math.h>
 
-// --- Generic Callback Declarations ---
-void *generic_create(obs_data_t *settings, obs_source_t *source);
-void generic_destroy(void *data);
-void generic_update(void *data, obs_data_t *settings);
-void generic_render(void *data, gs_effect_t *effect);
-void generic_tick(void *data, float seconds);
-obs_properties_t *generic_properties(void *data);
-// Defaults requires specific wrappers, declared below.
+// --- Helper Functions ---
+static void set_defaults_from_params(obs_data_t *settings, const param_def_t *params, size_t count) {
+    for (size_t i = 0; i < count; i++) {
+        const param_def_t *def = &params[i];
+        switch (def->type) {
+            case PARAM_FLOAT: obs_data_set_default_double(settings, def->name, def->default_val.f_val); break;
+            case PARAM_INT:   obs_data_set_default_int(settings, def->name, def->default_val.i_val); break;
+            case PARAM_BOOL:  obs_data_set_default_bool(settings, def->name, def->default_val.b_val); break;
+            case PARAM_COLOR: obs_data_set_default_int(settings, def->name, def->default_val.i_val); break;
+        }
+    }
+}
 
 // --- Parameter Definitions ---
 
@@ -38,55 +42,42 @@ static const param_def_t bokeh_params[] = {
     {"samples", "Samples", "Number of blur samples (Quality)", PARAM_INT, {.i_val=32}, 1.0, 64.0, 1.0}
 };
 
-// --- Helper for defaults ---
-void set_defaults_from_params(obs_data_t *settings, const param_def_t *params, size_t count) {
-    for (size_t i = 0; i < count; i++) {
-        const param_def_t *def = &params[i];
-        switch (def->type) {
-            case PARAM_FLOAT: obs_data_set_default_double(settings, def->name, def->default_val.f_val); break;
-            case PARAM_INT:   obs_data_set_default_int(settings, def->name, (long long)def->default_val.i_val); break;
-            case PARAM_BOOL:  obs_data_set_default_bool(settings, def->name, def->default_val.b_val); break;
-            case PARAM_COLOR: obs_data_set_default_int(settings, def->name, (long long)def->default_val.i_val); break;
-        }
-    }
-}
-
 // --- Specific Defaults Wrappers ---
-void star_burst_defaults(obs_data_t *s) { set_defaults_from_params(s, star_burst_params, sizeof(star_burst_params)/sizeof(param_def_t)); }
-void liteleke_defaults(obs_data_t *s) { set_defaults_from_params(s, liteleke_params, sizeof(liteleke_params)/sizeof(param_def_t)); }
-void handheld_defaults(obs_data_t *s) { set_defaults_from_params(s, handheld_params, sizeof(handheld_params)/sizeof(param_def_t)); }
-void bokeh_defaults(obs_data_t *s) { set_defaults_from_params(s, bokeh_params, sizeof(bokeh_params)/sizeof(param_def_t)); }
-void style_transfer_defaults(obs_data_t *s) { (void)s; /* No params */ }
+void star_burst_defaults(obs_data_t *s) { set_defaults_from_params(s, star_burst_params, 3); }
+void liteleke_defaults(obs_data_t *s) { set_defaults_from_params(s, liteleke_params, 2); }
+void handheld_defaults(obs_data_t *s) { set_defaults_from_params(s, handheld_params, 3); }
+void bokeh_defaults(obs_data_t *s) { set_defaults_from_params(s, bokeh_params, 2); }
+void style_transfer_defaults(obs_data_t *s) { (void)s; }
 
 // --- Effect Registry ---
 
 static const effect_info_t star_burst_info = {
     "star_burst_effect", "Star Burst", "Creates dramatic star-shaped rays", "shaders/star-burst.shader",
-    star_burst_params, sizeof(star_burst_params)/sizeof(param_def_t),
+    star_burst_params, 3,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, star_burst_defaults
 };
 
 static const effect_info_t liteleke_info = {
     "liteleke_effect", "Light Leak", "Adds organic light leaks", "shaders/light-leak.shader",
-    liteleke_params, sizeof(liteleke_params)/sizeof(param_def_t),
+    liteleke_params, 2,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, liteleke_defaults
 };
 
 static const effect_info_t handheld_info = {
     "handheld_effect", "Handheld Camera", "Simulates handheld camera movement", "shaders/handheld.shader",
-    handheld_params, sizeof(handheld_params)/sizeof(param_def_t),
+    handheld_params, 3,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, handheld_defaults
 };
 
 static const effect_info_t bokeh_info = {
     "bokeh_effect", "Bokeh", "Creates beautiful bokeh light effects", "shaders/bokeh.shader",
-    bokeh_params, sizeof(bokeh_params)/sizeof(param_def_t),
+    bokeh_params, 2,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, bokeh_defaults
 };
 
 static const effect_info_t style_transfer_info = {
     "style_transfer_effect", "Style Transfer", "Applies artistic style transfer", "shaders/style-transfer.shader",
-    NULL, 0, // No params yet
+    NULL, 0,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, style_transfer_defaults
 };
 
@@ -127,7 +118,6 @@ gs_effect_t *load_shader_effect(const char *shader_path) {
 // --- Generic Implementation ---
 
 void *generic_create(obs_data_t *settings, obs_source_t *source) {
-    (void)settings;
     const effect_info_t *info = obs_source_get_type_data(source);
     
     effect_data_t *ed = bzalloc(sizeof(effect_data_t));
@@ -144,15 +134,10 @@ void *generic_create(obs_data_t *settings, obs_source_t *source) {
     ed->param_uv_size = gs_effect_get_param_by_name(ed->effect, "uv_size");
     ed->param_elapsed_time = gs_effect_get_param_by_name(ed->effect, "elapsed_time");
 
-    // Dynamic Parameter Binding
     if (info->num_params > 0) {
         ed->param_handles = bzalloc(sizeof(gs_eparam_t*) * info->num_params);
         for (size_t i = 0; i < info->num_params; i++) {
             ed->param_handles[i] = gs_effect_get_param_by_name(ed->effect, info->params[i].name);
-            if (!ed->param_handles[i]) {
-                blog(LOG_WARNING, "[%s] Warning: Shader parameter '%s' not found in %s", 
-                     info->name, info->params[i].name, info->shader_path);
-            }
         }
     }
 
@@ -181,16 +166,11 @@ void generic_update(void *data, obs_data_t *settings) {
         switch (def->type) {
             case PARAM_FLOAT: {
                 double val = obs_data_get_double(settings, def->name);
-                // Clamp
-                if (val < def->min) val = def->min;
-                if (val > def->max) val = def->max;
                 gs_effect_set_float(handle, (float)val);
                 break;
             }
             case PARAM_INT: {
                 long long val = obs_data_get_int(settings, def->name);
-                if (val < (long long)def->min) val = (long long)def->min;
-                if (val > (long long)def->max) val = (long long)def->max;
                 gs_effect_set_int(handle, (int)val);
                 break;
             }
@@ -203,9 +183,6 @@ void generic_update(void *data, obs_data_t *settings) {
                 long long val = obs_data_get_int(settings, def->name);
                 struct vec4 color_vec;
                 vec4_from_rgba(&color_vec, (uint32_t)val);
-                // Shader often expects vec4 for color, ensure w=1.0 if not using alpha in hex
-                // But obs_properties_add_color returns int with alpha. 
-                // We should respect the alpha.
                 gs_effect_set_vec4(handle, &color_vec);
                 break;
             }
@@ -214,7 +191,7 @@ void generic_update(void *data, obs_data_t *settings) {
 }
 
 void generic_render(void *data, gs_effect_t *effect) {
-    (void)effect; // We use the internal effect from data
+    (void)effect; 
     effect_data_t *ed = data;
     if (!ed || !ed->effect) {
         obs_source_skip_video_filter(ed->context);
@@ -228,7 +205,6 @@ void generic_render(void *data, gs_effect_t *effect) {
     }
 
     if (obs_source_process_filter_begin(ed->context, GS_RGBA, OBS_ALLOW_DIRECT_RENDERING)) {
-        // Standard Uniforms
         if (ed->param_uv_size) {
             struct vec2 uv = {
                 .x = (float)obs_source_get_width(target),
@@ -240,10 +216,9 @@ void generic_render(void *data, gs_effect_t *effect) {
             gs_effect_set_float(ed->param_elapsed_time, ed->elapsed_time);
         }
         
-        // Draw
         gs_technique_t *tech = gs_effect_get_technique(ed->effect, "Draw");
         if (!tech) tech = gs_effect_get_technique(ed->effect, "Default");
-        if (!tech) tech = gs_effect_get_technique(ed->effect, 0); // last resort
+        if (!tech) tech = gs_effect_get_technique(ed->effect, 0); 
         
         if (tech) {
             gs_technique_begin(tech);

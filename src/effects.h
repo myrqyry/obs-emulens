@@ -1,6 +1,6 @@
 #pragma once
 
-#include <obs-module.h>
+#include <obs/obs.h>
 #include <graphics/graphics.h>
 #include <util/bmem.h>
 #include <util/platform.h>
@@ -39,7 +39,7 @@ typedef struct {
     // Default values
     union {
         double f_val;
-        int    i_val;
+        long long i_val;
         bool   b_val;
     } default_val;
 
@@ -53,6 +53,14 @@ typedef struct {
 
 struct obs_source;
 typedef struct obs_source obs_source_t;
+struct obs_data;
+typedef struct obs_data obs_data_t;
+struct gs_effect;
+typedef struct gs_effect gs_effect_t;
+struct gs_effect_param;
+typedef struct gs_effect_param gs_eparam_t;
+struct obs_properties;
+typedef struct obs_properties obs_properties_t;
 
 typedef struct {
     const char *id;
@@ -94,6 +102,14 @@ typedef struct {
 extern const size_t num_effects;
 extern const effect_info_t *effects[];
 const char *get_effect_name(void *type_data);
+
+// Generic declarations
+void *generic_create(obs_data_t *settings, obs_source_t *source);
+void generic_destroy(void *data);
+void generic_update(void *data, obs_data_t *settings);
+void generic_render(void *data, gs_effect_t *effect);
+void generic_tick(void *data, float seconds);
+obs_properties_t *generic_properties(void *data);
 
 #ifdef __cplusplus
 }
