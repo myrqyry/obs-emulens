@@ -48,8 +48,14 @@ build() {
     cmake --preset "${CONFIG_PRESET}" \
         -DCMAKE_BUILD_TYPE="${BUILD_CONFIG}" \
         -DENABLE_FRONTEND_API=ON \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
         -DENABLE_QT=OFF
     
+    # Symlink compile_commands.json to root for IDE support
+    if [ -f "${BUILD_DIR}/compile_commands.json" ]; then
+        ln -sf "${BUILD_DIR}/compile_commands.json" .
+    fi
+
     cmake --build --preset "${CONFIG_PRESET}" --config "${BUILD_CONFIG}"
     echo "Build complete!"
 }
