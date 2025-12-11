@@ -1,3 +1,8 @@
+/*
+ * src/effects.h
+ * Refactored for Data-Driven Architecture
+ */
+
 #pragma once
 
 #include <obs/obs.h>
@@ -11,6 +16,7 @@
 #define MAX_SHADER_PATH_LENGTH 256
 #define DEFAULT_ELAPSED_TIME_STEP 0.016f
 
+// Consistent error logging macros
 #define LOG_AND_RETURN_NULL(msg, ...) \
 	do { blog(LOG_ERROR, msg, ##__VA_ARGS__); return NULL; } while (0)
 
@@ -30,20 +36,21 @@ typedef enum {
     PARAM_BOOL
 } param_type_t;
 
+// Schema definition for a single parameter
 typedef struct {
     const char *name;           // Shader uniform name AND OBS property name
     const char *display_name;   // GUI Label
-    const char *description;    // Tooltip
+    const char *description;    // Tooltip (Optional)
     param_type_t type;
     
-    // Default values
+    // Default values union
     union {
         double f_val;
         long long i_val;
         bool   b_val;
     } default_val;
 
-    // Range (for sliders)
+    // Range constraints (for sliders)
     double min;
     double max;
     double step;
@@ -51,6 +58,7 @@ typedef struct {
 
 // --- Effect Structures ---
 
+// Forward declarations
 struct obs_source;
 typedef struct obs_source obs_source_t;
 struct obs_data;
@@ -68,11 +76,11 @@ typedef struct {
     const char *description;
     const char *shader_path;
     
-    // Parameter Metadata
+    // Parameter Metadata (The Contract)
     const param_def_t *params;
     size_t num_params;
 
-    // Standard callbacks
+    // Standard callbacks (can point to generics or specifics)
     void *(*create)(obs_data_t *settings, obs_source_t *source);
     void (*destroy)(void *data);
     void (*update)(void *data, obs_data_t *settings);
@@ -82,6 +90,7 @@ typedef struct {
     void (*get_defaults)(obs_data_t *settings);
 } effect_info_t;
 
+// Runtime data for an active effect instance
 typedef struct {
     obs_source_t *context;
     const effect_info_t *info;
@@ -93,7 +102,7 @@ typedef struct {
     gs_eparam_t *param_uv_pixel_interval;
     gs_eparam_t *param_elapsed_time;
 
-    // Dynamic Parameter Handles (matches index of info->params)
+    // Dynamic Parameter Handles (index matches info->params index)
     gs_eparam_t **param_handles;
     
     float elapsed_time;
@@ -104,7 +113,7 @@ extern const size_t num_effects;
 extern const effect_info_t *effects[];
 const char *get_effect_name(void *type_data);
 
-// Generic declarations
+// Generic declarations for use in effect definitions
 void *generic_create(obs_data_t *settings, obs_source_t *source);
 void generic_destroy(void *data);
 void generic_update(void *data, obs_data_t *settings);

@@ -1,3 +1,8 @@
+/*
+ * src/effects.c
+ * Implements Generic Data-Driven Effect Logic
+ */
+
 #include "effects.h"
 #include <obs-module.h>
 #include <graphics/graphics.h>
@@ -5,28 +10,21 @@
 #include <util/dstr.h>
 #include <math.h>
 
-// --- Generic Callback Declarations ---
-void *generic_create(obs_data_t *settings, obs_source_t *source);
-void generic_destroy(void *data);
-void generic_update(void *data, obs_data_t *settings);
-void generic_render(void *data, gs_effect_t *effect);
-void generic_tick(void *data, float seconds);
-obs_properties_t *generic_properties(void *data);
-
-// --- Helper for defaults ---
-void set_defaults_from_params(obs_data_t *settings, const param_def_t *params, size_t count) {
+// --- Helper: Default Value Setter ---
+// Applies the default values defined in the struct to the OBS settings object
+static void set_defaults_from_params(obs_data_t *settings, const param_def_t *params, size_t count) {
     for (size_t i = 0; i < count; i++) {
         const param_def_t *def = &params[i];
         switch (def->type) {
             case PARAM_FLOAT: obs_data_set_default_double(settings, def->name, def->default_val.f_val); break;
-            case PARAM_INT:   obs_data_set_default_int(settings, def->name, (long long)def->default_val.i_val); break;
+            case PARAM_INT:   obs_data_set_default_int(settings, def->name, def->default_val.i_val); break;
             case PARAM_BOOL:  obs_data_set_default_bool(settings, def->name, def->default_val.b_val); break;
-            case PARAM_COLOR: obs_data_set_default_int(settings, def->name, (long long)def->default_val.i_val); break;
+            case PARAM_COLOR: obs_data_set_default_int(settings, def->name, def->default_val.i_val); break;
         }
     }
 }
 
-// --- Parameter Definitions ---
+// --- 1. Parameter Definitions (The "Config") ---
 
 static const param_def_t star_burst_params[] = {
     {"Threshold", "Threshold", "Brightness threshold", PARAM_FLOAT, {.f_val=0.7}, 0.33, 2.0, 0.01},
@@ -37,7 +35,7 @@ static const param_def_t star_burst_params[] = {
     {"RaySmoothness", "Ray Smoothness", "Falloff smoothness", PARAM_FLOAT, {.f_val=3.0}, 1.0, 10.0, 0.5},
     {"Rotation", "Rotation", "Static rotation", PARAM_FLOAT, {.f_val=0.0}, 0.0, 6.283, 0.1},
     {"ColorizeRays", "Colorize Rays", "Enable custom ray color", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
-    {"RayColor", "Ray Color", "Custom ray color", PARAM_COLOR, {.i_val=0xFF66CCFF}, 0, 0, 0}, // ABGR (Orange-ish)
+    {"RayColor", "Ray Color", "Custom ray color", PARAM_COLOR, {.i_val=0xFFFFFFFF}, 0, 0, 0},
     {"EnableRotation", "Animate Rotation", "Enable continuous rotation", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
     {"RotationSpeed", "Rotation Speed", "Speed of rotation animation", PARAM_FLOAT, {.f_val=0.5}, -2.0, 2.0, 0.1},
     {"ExtendRays", "Extend Rays", "Extend rays beyond bright areas", PARAM_BOOL, {.b_val=true}, 0, 0, 0},
@@ -49,106 +47,68 @@ static const param_def_t star_burst_params[] = {
 };
 
 static const param_def_t liteleke_params[] = {
-    {"leakColor", "Leak Color", "Primary leak color", PARAM_COLOR, {.i_val=0xFF3380FF}, 0, 0, 0}, // ABGR
-    {"leakIntensity", "Intensity", "Overall opacity", PARAM_FLOAT, {.f_val=0.8}, 0.0, 3.0, 0.05},
-    {"leakSpeed", "Speed", "Animation speed", PARAM_FLOAT, {.f_val=0.5}, 0.0, 5.0, 0.1},
+    {"leakIntensity", "Intensity", "Opacity of the light leak", PARAM_FLOAT, {.f_val=0.8}, 0.0, 3.0, 0.05},
+    {"leakColor", "Leak Color", "Primary leak color", PARAM_COLOR, {.i_val=0xFF3380FF}, 0, 0, 0}, // ABGR format often used in OBS
     {"leakScale", "Scale", "Noise pattern size", PARAM_FLOAT, {.f_val=2.0}, 0.1, 10.0, 0.1},
+    {"leakSpeed", "Speed", "Animation speed", PARAM_FLOAT, {.f_val=0.5}, 0.0, 5.0, 0.1},
     {"edgeFalloff", "Edge Falloff", "Edge clamping tightness", PARAM_FLOAT, {.f_val=3.0}, 0.5, 10.0, 0.1},
     {"noiseComplexity", "Complexity", "Noise detail level", PARAM_FLOAT, {.f_val=3.0}, 1.0, 8.0, 1.0},
-    {"topBias", "Top Bias", "Leak visibility top", PARAM_FLOAT, {.f_val=0.25}, 0.0, 2.0, 0.05},
-    {"bottomBias", "Bottom Bias", "Leak visibility bottom", PARAM_FLOAT, {.f_val=0.25}, 0.0, 2.0, 0.05},
-    {"leftBias", "Left Bias", "Leak visibility left", PARAM_FLOAT, {.f_val=0.25}, 0.0, 2.0, 0.05},
-    {"rightBias", "Right Bias", "Leak visibility right", PARAM_FLOAT, {.f_val=0.25}, 0.0, 2.0, 0.05},
     {"streakiness", "Streakiness", "Horizontal stretching", PARAM_FLOAT, {.f_val=1.0}, 0.1, 10.0, 0.05},
-    {"leakShapeContrast", "Contrast", "Leak shape sharpness", PARAM_FLOAT, {.f_val=1.5}, 0.5, 5.0, 0.05},
     {"enablePulsing", "Enable Pulsing", "Pulse intensity over time", PARAM_BOOL, {.b_val=true}, 0, 0, 0},
     {"pulseSpeed", "Pulse Speed", "Pulsing frequency", PARAM_FLOAT, {.f_val=0.5}, 0.1, 5.0, 0.05},
-    {"pulseMinAlpha", "Pulse Min", "Minimum alpha during pulse", PARAM_FLOAT, {.f_val=0.05}, 0.0, 1.0, 0.01},
-    {"pulseMaxAlpha", "Pulse Max", "Maximum alpha during pulse", PARAM_FLOAT, {.f_val=0.3}, 0.0, 1.0, 0.01},
-    {"enableColorShift", "Color Shift", "Enable dual-color shifting", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
-    {"secondLeakColor", "Second Color", "Secondary leak color", PARAM_COLOR, {.i_val=0xFF1A33FF}, 0, 0, 0},
-    {"colorShiftSpeed", "Shift Speed", "Color transition speed", PARAM_FLOAT, {.f_val=0.2}, 0.05, 2.0, 0.05},
-    {"hotspotIntensity", "Hotspot", "Core brightness boost", PARAM_FLOAT, {.f_val=0.5}, 0.0, 3.0, 0.05},
-    {"hotspotExponent", "Hotspot Size", "Hotspot tightness", PARAM_FLOAT, {.f_val=3.0}, 1.0, 10.0, 0.1},
-    {"hotspotColor", "Hotspot Tint", "Tint for hotspot", PARAM_COLOR, {.i_val=0xFF000D1A}, 0, 0, 0},
-    {"grainAmount", "Grain", "Film grain intensity", PARAM_FLOAT, {.f_val=0.05}, 0.0, 0.5, 0.01},
-    {"grainScale", "Grain Size", "Film grain scale", PARAM_FLOAT, {.f_val=50.0}, 10.0, 100.0, 1.0},
     {"blendMode", "Blend Mode", "0:Alpha 1:Add 2:Screen 3:Over 4:Soft", PARAM_INT, {.i_val=0}, 0, 4, 1}
 };
 
 static const param_def_t handheld_params[] = {
     {"preset", "Preset", "0:Stable 1:Breath 2:Handheld 3:Shaky 4:Quake 99:Custom", PARAM_INT, {.i_val=2}, 0, 99, 1},
     {"masterIntensity", "Master Intensity", "Global strength multiplier", PARAM_FLOAT, {.f_val=1.0}, 0.0, 2.0, 0.05},
-    {"positionAmount", "Pos Amount", "Position shake amplitude", PARAM_FLOAT, {.f_val=0.005}, 0.0, 0.1, 0.001},
-    {"rotationAmount", "Rot Amount", "Rotation shake amplitude", PARAM_FLOAT, {.f_val=0.5}, 0.0, 10.0, 0.1},
-    {"zoomAmount", "Zoom Amount", "Zoom breathing amplitude", PARAM_FLOAT, {.f_val=0.01}, 0.0, 0.2, 0.002},
     {"positionSpeed", "Pos Speed", "Position shake frequency", PARAM_FLOAT, {.f_val=1.5}, 0.1, 10.0, 0.1},
     {"rotationSpeed", "Rot Speed", "Rotation shake frequency", PARAM_FLOAT, {.f_val=1.0}, 0.1, 10.0, 0.1},
     {"zoomSpeed", "Zoom Speed", "Zoom breathing frequency", PARAM_FLOAT, {.f_val=0.8}, 0.1, 10.0, 0.1},
     {"enableDynamicBlur", "Motion Blur", "Enable dynamic motion blur", PARAM_BOOL, {.b_val=true}, 0, 0, 0},
-    {"blurAmount", "Blur Max", "Maximum blur amount", PARAM_FLOAT, {.f_val=1.0}, 0.0, 5.0, 0.1},
-    {"blurSpeed", "Blur Speed", "Blur fluctuation speed", PARAM_FLOAT, {.f_val=1.5}, 0.1, 10.0, 0.1},
-    {"staticBlurAmount", "Static Blur", "Constant base blur", PARAM_FLOAT, {.f_val=0.0}, 0.0, 3.0, 0.05},
-    {"edgeFeatherAmount", "Edge Feather", "Softness of video edges", PARAM_FLOAT, {.f_val=0.05}, 0.0, 0.25, 0.005}
+    {"blurAmount", "Blur Amount", "Strength of motion blur", PARAM_FLOAT, {.f_val=1.0}, 0.0, 5.0, 0.1}
 };
 
 static const param_def_t bokeh_params[] = {
     {"particle_density", "Density", "Particle count density", PARAM_FLOAT, {.f_val=25.0}, 1.0, 100.0, 1.0},
     {"particle_base_size", "Size", "Base particle size", PARAM_FLOAT, {.f_val=0.05}, 0.001, 0.2, 0.001},
-    {"particle_size_variation", "Size Variation", "Random size variance", PARAM_FLOAT, {.f_val=0.5}, 0.0, 1.0, 0.01},
-    {"animation_speed", "Speed", "Animation speed", PARAM_FLOAT, {.f_val=0.3}, 0.0, 5.0, 0.01},
-    {"particle_color_start", "Color Start", "Color at start of life", PARAM_COLOR, {.i_val=0xCCFFCCFF}, 0, 0, 0},
-    {"particle_color_end", "Color End", "Color at end of life", PARAM_COLOR, {.i_val=0x00803333}, 0, 0, 0},
-    {"enable_source_brightness_affect", "Source Affect", "Source brightness affects alpha", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
-    {"source_brightness_strength", "Source Strength", "Strength of source influence", PARAM_FLOAT, {.f_val=0.75}, 0.0, 1.0, 0.01},
-    {"source_brightness_threshold", "Source Threshold", "Brightness threshold", PARAM_FLOAT, {.f_val=0.2}, 0.0, 1.0, 0.01},
-    {"focus_point_x", "Focus X", "Focus Center X", PARAM_FLOAT, {.f_val=0.5}, -0.5, 1.5, 0.01},
-    {"focus_point_y", "Focus Y", "Focus Center Y", PARAM_FLOAT, {.f_val=0.5}, -0.5, 1.5, 0.01},
     {"focus_strength", "Focus Strength", "Blur falloff from focus", PARAM_FLOAT, {.f_val=2.0}, 0.0, 10.0, 0.1},
     {"motion_blur_amount", "Motion Blur", "Trail/Motion blur amount", PARAM_FLOAT, {.f_val=0.1}, 0.0, 0.95, 0.01},
     {"bokeh_edge_softness", "Softness", "Bokeh shape edge softness", PARAM_FLOAT, {.f_val=0.5}, 0.0, 1.0, 0.01},
-    {"use_polygons", "Polygons", "Use polygonal shapes", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
-    {"poly_sides", "Sides", "Polygon sides", PARAM_INT, {.i_val=6}, 3, 10, 1},
-    {"poly_rotation", "Rotation", "Polygon rotation", PARAM_FLOAT, {.f_val=0.0}, 0.0, 360.0, 1.0},
-    {"poly_rotation_speed", "Rot Speed", "Polygon rotation speed", PARAM_FLOAT, {.f_val=0.0}, -360.0, 360.0, 1.0},
     {"enable_chromatic_aberration", "Chromatic Aberration", "Enable CA", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
-    {"ca_strength", "CA Strength", "Chromatic Aberration Amount", PARAM_FLOAT, {.f_val=2.0}, 0.0, 10.0, 0.1},
-    {"enable_onion_rings", "Onion Rings", "Enable onion ring artifact", PARAM_BOOL, {.b_val=false}, 0, 0, 0},
-    {"onion_ring_frequency", "Ring Freq", "Number of rings", PARAM_FLOAT, {.f_val=5.0}, 1.0, 25.0, 0.5},
-    {"onion_ring_strength", "Ring Strength", "Visibility of rings", PARAM_FLOAT, {.f_val=0.4}, 0.0, 1.0, 0.01},
-    {"onion_ring_animation_speed", "Ring Speed", "Ring animation speed", PARAM_FLOAT, {.f_val=0.0}, -5.0, 5.0, 0.1}
+    {"ca_strength", "CA Strength", "Chromatic Aberration Amount", PARAM_FLOAT, {.f_val=2.0}, 0.0, 10.0, 0.1}
 };
 
-// --- Defaults Wrappers ---
-void star_burst_defaults(obs_data_t *s) { set_defaults_from_params(s, star_burst_params, sizeof(star_burst_params)/sizeof(param_def_t)); }
-void liteleke_defaults(obs_data_t *s) { set_defaults_from_params(s, liteleke_params, sizeof(liteleke_params)/sizeof(param_def_t)); }
-void handheld_defaults(obs_data_t *s) { set_defaults_from_params(s, handheld_params, sizeof(handheld_params)/sizeof(param_def_t)); }
-void bokeh_defaults(obs_data_t *s) { set_defaults_from_params(s, bokeh_params, sizeof(bokeh_params)/sizeof(param_def_t)); }
+// --- 2. Specific Defaults Wrappers (Needed for function pointers) ---
+void star_burst_defaults(obs_data_t *s) { set_defaults_from_params(s, star_burst_params, 17); }
+void liteleke_defaults(obs_data_t *s) { set_defaults_from_params(s, liteleke_params, 10); }
+void handheld_defaults(obs_data_t *s) { set_defaults_from_params(s, handheld_params, 7); }
+void bokeh_defaults(obs_data_t *s) { set_defaults_from_params(s, bokeh_params, 7); }
 void style_transfer_defaults(obs_data_t *s) { (void)s; }
 
-// --- Effect Registry ---
+// --- 3. Effect Registry ---
 
 static const effect_info_t star_burst_info = {
     "star_burst_effect", "Star Burst", "Creates dramatic star-shaped rays", "shaders/star-burst.shader",
-    star_burst_params, sizeof(star_burst_params)/sizeof(param_def_t),
+    star_burst_params, 17,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, star_burst_defaults
 };
 
 static const effect_info_t liteleke_info = {
     "liteleke_effect", "Light Leak", "Adds organic light leaks", "shaders/light-leak.shader",
-    liteleke_params, sizeof(liteleke_params)/sizeof(param_def_t),
+    liteleke_params, 10,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, liteleke_defaults
 };
 
 static const effect_info_t handheld_info = {
     "handheld_effect", "Handheld Camera", "Simulates handheld camera movement", "shaders/handheld.shader",
-    handheld_params, sizeof(handheld_params)/sizeof(param_def_t),
+    handheld_params, 7,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, handheld_defaults
 };
 
 static const effect_info_t bokeh_info = {
     "bokeh_effect", "Bokeh", "Creates beautiful bokeh light effects", "shaders/bokeh.shader",
-    bokeh_params, sizeof(bokeh_params)/sizeof(param_def_t),
+    bokeh_params, 7,
     generic_create, generic_destroy, generic_update, generic_render, generic_tick, generic_properties, bokeh_defaults
 };
 
@@ -163,7 +123,7 @@ const effect_info_t *effects[] = {
 };
 const size_t num_effects = sizeof(effects) / sizeof(effects[0]);
 
-// --- Implementation Helpers ---
+// --- 4. Implementation Helpers ---
 
 const char *get_effect_name(void *type_data) {
     const effect_info_t *info = type_data;
@@ -172,22 +132,33 @@ const char *get_effect_name(void *type_data) {
 
 static bool is_valid_shader_path(const char *path) {
     if (!path || strlen(path) == 0 || strlen(path) > 256) return false;
+    // Basic directory traversal check
     if (strstr(path, "..") || strstr(path, "//") || strchr(path, '\\')) return false;
+    // Strict folder and extension check
     if (strncmp(path, "shaders/", 8) != 0) return false;
     const char *ext = strrchr(path, '.');
     return (ext && strcmp(ext, ".shader") == 0);
 }
 
-// --- Includes for effect internals ---
-#include <graphics/effect.h>
+// --- 5. Generic Implementation ---
+
+#include <graphics/effect.h> // Ensure we have effect definitions
 
 gs_effect_t *load_shader_effect(const char *shader_path) {
-    if (!is_valid_shader_path(shader_path)) return NULL;
-    // Explicitly find the module file using the project name
+    if (!is_valid_shader_path(shader_path)) {
+        blog(LOG_ERROR, "Invalid shader path: %s", shader_path);
+        return NULL;
+    }
+    
+    // Explicitly find the module file using the project name "obs-emulens"
     obs_module_t *module = obs_get_module("obs-emulens");
     char *full_path = obs_find_module_file(module, shader_path);
+
+    if (!full_path) {
+        blog(LOG_ERROR, "Could not find shader file: %s", shader_path);
+        return NULL;
+    }
     
-    if (!full_path) return NULL;
     char *error_string = NULL;
     gs_effect_t *effect = gs_effect_create_from_file(full_path, &error_string);
     bfree(full_path);
@@ -197,8 +168,6 @@ gs_effect_t *load_shader_effect(const char *shader_path) {
     }
     return effect;
 }
-
-// --- Generic Implementation ---
 
 void *generic_create(obs_data_t *settings, obs_source_t *source) {
     const effect_info_t *info = obs_source_get_type_data(source);
@@ -216,17 +185,19 @@ void *generic_create(obs_data_t *settings, obs_source_t *source) {
         return NULL;
     }
 
+    // Bind Standard Uniforms
     ed->param_image = gs_effect_get_param_by_name(ed->effect, "image");
     ed->param_uv_size = gs_effect_get_param_by_name(ed->effect, "uv_size");
     ed->param_uv_pixel_interval = gs_effect_get_param_by_name(ed->effect, "uv_pixel_interval");
     ed->param_elapsed_time = gs_effect_get_param_by_name(ed->effect, "elapsed_time");
 
+    // Dynamic Parameter Binding
     if (info->num_params > 0) {
         ed->param_handles = bzalloc(sizeof(gs_eparam_t*) * info->num_params);
         for (size_t i = 0; i < info->num_params; i++) {
             ed->param_handles[i] = gs_effect_get_param_by_name(ed->effect, info->params[i].name);
             if (!ed->param_handles[i]) {
-                blog(LOG_WARNING, "[%s] Parameter '%s' not found in shader", info->name, info->params[i].name);
+                blog(LOG_WARNING, "[%s] Warning: Shader parameter '%s' not found in shader", info->name, info->params[i].name);
             }
         }
     }
@@ -252,11 +223,13 @@ void generic_update(void *data, obs_data_t *settings) {
     effect_data_t *ed = data;
     if (!ed || !ed->effect) return;
 
+    // Iterate through metadata and update shader parameters based on type
     for (size_t i = 0; i < ed->info->num_params; i++) {
         const param_def_t *def = &ed->info->params[i];
         gs_eparam_t *handle = ed->param_handles[i];
         if (!handle) continue;
 
+        // Robust Type Checking: Ensure we match the shader's expectation
         enum gs_shader_param_type type = handle->type;
 
         switch (def->type) {
@@ -270,7 +243,7 @@ void generic_update(void *data, obs_data_t *settings) {
                 } else if (type == GS_SHADER_PARAM_INT) {
                     gs_effect_set_int(handle, (int)val);
                 } else {
-                    blog(LOG_WARNING, "Param '%s' type mismatch: C=Float, Shader=%d", def->name, (int)type);
+                    blog(LOG_WARNING, "Param '%s' mismatch: C=Float, Shader=%d", def->name, (int)type);
                 }
                 break;
             }
@@ -284,7 +257,7 @@ void generic_update(void *data, obs_data_t *settings) {
                 } else if (type == GS_SHADER_PARAM_FLOAT) {
                     gs_effect_set_float(handle, (float)val);
                 } else {
-                     blog(LOG_WARNING, "Param '%s' type mismatch: C=Int, Shader=%d", def->name, (int)type);
+                    blog(LOG_WARNING, "Param '%s' mismatch: C=Int, Shader=%d", def->name, (int)type);
                 }
                 break;
             }
@@ -293,11 +266,11 @@ void generic_update(void *data, obs_data_t *settings) {
                 if (type == GS_SHADER_PARAM_BOOL) {
                     gs_effect_set_bool(handle, val);
                 } else if (type == GS_SHADER_PARAM_INT) {
-                     gs_effect_set_int(handle, val ? 1 : 0);
+                    gs_effect_set_int(handle, val ? 1 : 0);
                 } else if (type == GS_SHADER_PARAM_FLOAT) {
-                     gs_effect_set_float(handle, val ? 1.0f : 0.0f);
+                    gs_effect_set_float(handle, val ? 1.0f : 0.0f);
                 } else {
-                    blog(LOG_WARNING, "Param '%s' type mismatch: C=Bool, Shader=%d", def->name, (int)type);
+                    blog(LOG_WARNING, "Param '%s' mismatch: C=Bool, Shader=%d", def->name, (int)type);
                 }
                 break;
             }
@@ -305,14 +278,13 @@ void generic_update(void *data, obs_data_t *settings) {
                 long long val = obs_data_get_int(settings, def->name);
                 struct vec4 color_vec;
                 vec4_from_rgba(&color_vec, (uint32_t)val);
-                
+
                 if (type == GS_SHADER_PARAM_VEC4) {
                     gs_effect_set_vec4(handle, &color_vec);
                 } else if (type == GS_SHADER_PARAM_INT) {
-                    // Pack back? Unlikely to work but fallback
-                     gs_effect_set_int(handle, (uint32_t)val); 
+                    gs_effect_set_int(handle, (uint32_t)val);
                 } else {
-                    blog(LOG_WARNING, "Param '%s' type mismatch: C=Color, Shader=%d", def->name, (int)type);
+                     blog(LOG_WARNING, "Param '%s' mismatch: C=Color, Shader=%d", def->name, (int)type);
                 }
                 break;
             }
@@ -321,7 +293,7 @@ void generic_update(void *data, obs_data_t *settings) {
 }
 
 void generic_render(void *data, gs_effect_t *effect) {
-    (void)effect; 
+    (void)effect; // Use internal effect
     effect_data_t *ed = data;
     if (!ed || !ed->effect) {
         obs_source_skip_video_filter(ed->context);
@@ -338,59 +310,25 @@ void generic_render(void *data, gs_effect_t *effect) {
         float width = (float)obs_source_get_width(target);
         float height = (float)obs_source_get_height(target);
 
-        // Standard Uniforms
+        // Update Standard Uniforms
         if (ed->param_uv_size) {
             struct vec2 uv;
             vec2_set(&uv, width, height);
-            
-            enum gs_shader_param_type type = ed->param_uv_size->type;
-            if (type == GS_SHADER_PARAM_VEC2) {
-                gs_effect_set_vec2(ed->param_uv_size, &uv);
-            } else if (type == GS_SHADER_PARAM_VEC4) {
-                 struct vec4 uv4;
-                 uv4.x = width; uv4.y = height;
-                 uv4.z = 1.0f / width; uv4.w = 1.0f / height;
-                 gs_effect_set_vec4(ed->param_uv_size, &uv4);
-            } else {
-                blog(LOG_WARNING, "uv_size has unexpected type: %d", (int)type);
-            }
+            gs_effect_set_vec2(ed->param_uv_size, &uv);
         }
         
         if (ed->param_uv_pixel_interval) {
-            struct vec4 interval;
-            interval.x = 1.0f / width;
-            interval.y = 1.0f / height;
-            interval.z = width;
-            interval.w = height;
-            
-            enum gs_shader_param_type type = ed->param_uv_pixel_interval->type;
-            if (type == GS_SHADER_PARAM_VEC4) {
-                gs_effect_set_vec4(ed->param_uv_pixel_interval, &interval);
-            } else if (type == GS_SHADER_PARAM_VEC2) {
-                struct vec2 interval2;
-                vec2_set(&interval2, interval.x, interval.y);
-                gs_effect_set_vec2(ed->param_uv_pixel_interval, &interval2);
-            } else {
-                blog(LOG_WARNING, "uv_pixel_interval has unexpected type: %d", (int)type);
-            }
+            struct vec2 interval;
+            vec2_set(&interval, 1.0f / width, 1.0f / height);
+            gs_effect_set_vec2(ed->param_uv_pixel_interval, &interval);
         }
 
         if (ed->param_elapsed_time) {
-            enum gs_shader_param_type type = ed->param_elapsed_time->type;
-            if (type == GS_SHADER_PARAM_FLOAT) {
-                 gs_effect_set_float(ed->param_elapsed_time, ed->elapsed_time);
-            } else if (type == GS_SHADER_PARAM_INT) {
-                 gs_effect_set_int(ed->param_elapsed_time, (int)ed->elapsed_time);
-            } else {
-                blog(LOG_WARNING, "elapsed_time has unexpected type: %d", (int)type);
-            }
+            gs_effect_set_float(ed->param_elapsed_time, ed->elapsed_time);
         }
         
-        // Simple Standard Render
-        // OBS handles technique "Draw" automatically in process_filter_end if not specified, 
-        // or we can just let it handle the default.
-        // The documentation recommends this pattern for simple filters.
-        
+        // Use standard end function which handles techniques automatically
+        // This avoids double-rendering issues
         obs_source_process_filter_end(ed->context, ed->effect, 0, 0);
     }
 }
@@ -399,6 +337,7 @@ void generic_tick(void *data, float seconds) {
     effect_data_t *ed = data;
     if (ed) {
         ed->elapsed_time += seconds;
+        // Basic overflow protection, though float precision issues at 24h are negligible for shaders
         if (ed->elapsed_time > 86400.0f) ed->elapsed_time = fmod(ed->elapsed_time, 86400.0f);
     }
 }
@@ -408,6 +347,7 @@ obs_properties_t *generic_properties(void *data) {
     effect_data_t *ed = data;
     if (!ed || !ed->info) return props;
 
+    // Generate UI from Metadata
     for (size_t i = 0; i < ed->info->num_params; i++) {
         const param_def_t *def = &ed->info->params[i];
         
