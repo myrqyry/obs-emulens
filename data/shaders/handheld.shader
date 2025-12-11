@@ -101,6 +101,24 @@ uniform float edgeFeatherAmount < // NEW
     float minimum = 0.0; float maximum = 0.25; float step = 0.005;
 > = 0.05;
 
+// --- Standard Uniforms ---
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float elapsed_time;
+uniform float2 uv_size;
+uniform float2 uv_pixel_interval;
+
+sampler_state textureSampler {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv  : TEXCOORD0;
+};
+
 // --- Helper Functions ---
 float rand(float2 co){
     return frac(sin(dot(co.xy ,float2(12.9898,78.233))) * 43758.5453);
@@ -113,6 +131,15 @@ float noise(float2 p) {
     float res = lerp(lerp(rand(i + float2(0.0,0.0)), rand(i + float2(1.0,0.0)),f.x),
                      lerp(rand(i + float2(0.0,1.0)), rand(i + float2(1.0,1.0)),f.x),f.y);
     return res;
+}
+
+// --- Vertex Shader ---
+VertData VSDefault(VertData v_in)
+{
+    VertData v_out;
+    v_out.pos = mul(v_in.pos, ViewProj);
+    v_out.uv = v_in.uv;
+    return v_out;
 }
 
 // --- Pixel Shader ---
@@ -171,7 +198,6 @@ float4 mainImage(VertData v_in) : TARGET
     float current_rot_amount_rad = radians(current_rot_amount_deg);
 
     // Calculate dynamic transformations (Position, Rotation, Zoom - same as before)
-    // ... (copy paste the existing logic for pos_offset, rot_angle_rad, zoom_factor)
     float time_pos1 = elapsed_time * current_pos_speed * 0.7;
     float time_pos2 = elapsed_time * current_pos_speed * 1.5;
     float offset_x_val = (noise(float2(time_pos1, 5.3)) - 0.5) * 2.0;
@@ -191,7 +217,6 @@ float4 mainImage(VertData v_in) : TARGET
     float zoom_val = (noise(float2(17.2, time_zoom1 + 40.0)) - 0.5) * 2.0;
     zoom_val += (noise(float2(time_zoom2 + 55.0, 11.6)) - 0.5) * 1.0;
     float zoom_factor = 1.0 + (zoom_val * 0.333) * current_zoom_amount;
-
 
     // --- Apply transformations to UV coordinates ---
     float2 transformed_uv = original_texcoord;
@@ -253,4 +278,13 @@ float4 mainImage(VertData v_in) : TARGET
     float4 finalColor = float4(feathered_rgb, feathered_alpha);
 
     return finalColor;
+}
+
+technique Draw
+{
+    pass
+    {
+        vertex_shader = VSDefault(v_in);
+        pixel_shader  = mainImage(v_in);
+    }
 }

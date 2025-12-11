@@ -200,6 +200,23 @@ uniform int blendMode <
     int option_4_value = 4; string option_4_label = "Soft Light";
 > = 0; // Default to Alpha Blend
 
+// --- Standard Uniforms & Structs ---
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float elapsed_time;
+uniform float2 uv_size;
+uniform float2 uv_pixel_interval;
+
+sampler_state textureSampler {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv  : TEXCOORD0;
+};
 
 // --- Helper functions ---
 float rand(float2 co){
@@ -262,6 +279,15 @@ float3 SoftLightBlend(float3 base, float3 blend_rgb, float blend_alpha) {
     blended.g = SoftLightChannel(base.g, blend_rgb.g);
     blended.b = SoftLightChannel(base.b, blend_rgb.b);
     return lerp(base, blended, blend_alpha);
+}
+
+// --- Vertex Shader ---
+VertData VSDefault(VertData v_in)
+{
+    VertData v_out;
+    v_out.pos = mul(v_in.pos, ViewProj);
+    v_out.uv = v_in.uv;
+    return v_out;
 }
 
 // --- Pixel Shader ---
@@ -356,4 +382,13 @@ float4 mainImage(VertData v_in) : TARGET
     finalColor.a = originalColor.a; // Preserve original alpha
 
     return finalColor;
+}
+
+technique Draw
+{
+    pass
+    {
+        vertex_shader = VSDefault(v_in);
+        pixel_shader  = mainImage(v_in);
+    }
 }

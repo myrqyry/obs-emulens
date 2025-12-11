@@ -257,31 +257,63 @@ void generic_update(void *data, obs_data_t *settings) {
         gs_eparam_t *handle = ed->param_handles[i];
         if (!handle) continue;
 
+        enum gs_shader_param_type type = handle->type;
+
         switch (def->type) {
             case PARAM_FLOAT: {
                 double val = obs_data_get_double(settings, def->name);
                 if (val < def->min) val = def->min;
                 if (val > def->max) val = def->max;
-                gs_effect_set_float(handle, (float)val);
+                
+                if (type == GS_SHADER_PARAM_FLOAT) {
+                    gs_effect_set_float(handle, (float)val);
+                } else if (type == GS_SHADER_PARAM_INT) {
+                    gs_effect_set_int(handle, (int)val);
+                } else {
+                    blog(LOG_WARNING, "Param '%s' type mismatch: C=Float, Shader=%d", def->name, (int)type);
+                }
                 break;
             }
             case PARAM_INT: {
                 long long val = obs_data_get_int(settings, def->name);
                 if (val < (long long)def->min) val = (long long)def->min;
                 if (val > (long long)def->max) val = (long long)def->max;
-                gs_effect_set_int(handle, (int)val);
+
+                if (type == GS_SHADER_PARAM_INT) {
+                    gs_effect_set_int(handle, (int)val);
+                } else if (type == GS_SHADER_PARAM_FLOAT) {
+                    gs_effect_set_float(handle, (float)val);
+                } else {
+                     blog(LOG_WARNING, "Param '%s' type mismatch: C=Int, Shader=%d", def->name, (int)type);
+                }
                 break;
             }
             case PARAM_BOOL: {
                 bool val = obs_data_get_bool(settings, def->name);
-                gs_effect_set_bool(handle, val);
+                if (type == GS_SHADER_PARAM_BOOL) {
+                    gs_effect_set_bool(handle, val);
+                } else if (type == GS_SHADER_PARAM_INT) {
+                     gs_effect_set_int(handle, val ? 1 : 0);
+                } else if (type == GS_SHADER_PARAM_FLOAT) {
+                     gs_effect_set_float(handle, val ? 1.0f : 0.0f);
+                } else {
+                    blog(LOG_WARNING, "Param '%s' type mismatch: C=Bool, Shader=%d", def->name, (int)type);
+                }
                 break;
             }
             case PARAM_COLOR: {
                 long long val = obs_data_get_int(settings, def->name);
                 struct vec4 color_vec;
                 vec4_from_rgba(&color_vec, (uint32_t)val);
-                gs_effect_set_vec4(handle, &color_vec);
+                
+                if (type == GS_SHADER_PARAM_VEC4) {
+                    gs_effect_set_vec4(handle, &color_vec);
+                } else if (type == GS_SHADER_PARAM_INT) {
+                    // Pack back? Unlikely to work but fallback
+                     gs_effect_set_int(handle, (uint32_t)val); 
+                } else {
+                    blog(LOG_WARNING, "Param '%s' type mismatch: C=Color, Shader=%d", def->name, (int)type);
+                }
                 break;
             }
         }
@@ -319,6 +351,8 @@ void generic_render(void *data, gs_effect_t *effect) {
                  uv4.x = width; uv4.y = height;
                  uv4.z = 1.0f / width; uv4.w = 1.0f / height;
                  gs_effect_set_vec4(ed->param_uv_size, &uv4);
+            } else {
+                blog(LOG_WARNING, "uv_size has unexpected type: %d", (int)type);
             }
         }
         
@@ -336,6 +370,8 @@ void generic_render(void *data, gs_effect_t *effect) {
                 struct vec2 interval2;
                 vec2_set(&interval2, interval.x, interval.y);
                 gs_effect_set_vec2(ed->param_uv_pixel_interval, &interval2);
+            } else {
+                blog(LOG_WARNING, "uv_pixel_interval has unexpected type: %d", (int)type);
             }
         }
 
@@ -345,22 +381,16 @@ void generic_render(void *data, gs_effect_t *effect) {
                  gs_effect_set_float(ed->param_elapsed_time, ed->elapsed_time);
             } else if (type == GS_SHADER_PARAM_INT) {
                  gs_effect_set_int(ed->param_elapsed_time, (int)ed->elapsed_time);
+            } else {
+                blog(LOG_WARNING, "elapsed_time has unexpected type: %d", (int)type);
             }
         }
         
-        gs_technique_t *tech = gs_effect_get_technique(ed->effect, "Draw");
-        if (!tech) tech = gs_effect_get_technique(ed->effect, "Default");
-        if (!tech) tech = gs_effect_get_technique(ed->effect, 0); 
+        // Simple Standard Render
+        // OBS handles technique "Draw" automatically in process_filter_end if not specified, 
+        // or we can just let it handle the default.
+        // The documentation recommends this pattern for simple filters.
         
-        if (tech) {
-            gs_technique_begin(tech);
-            gs_technique_begin_pass(tech, 0);
-            obs_source_process_filter_tech_end(ed->context, ed->effect, 0, 0, "Draw");
-            gs_technique_end_pass(tech);
-            gs_technique_end(tech);
-        } else {
-            obs_source_skip_video_filter(ed->context);
-        }
         obs_source_process_filter_end(ed->context, ed->effect, 0, 0);
     }
 }

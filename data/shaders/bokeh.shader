@@ -1,21 +1,7 @@
 // --- Constants ---
 #define PI 3.14159265359
 
-// --- User-defined parameters (uniforms) ---
-// These are implicitly available global uniforms provided by ShaderFilter's wrapper:
-// uniform texture2d image;
-// uniform sampler_state textureSampler;
-// uniform float elapsed_time;
-// uniform float2 uv_size; // size of the texture in pixels
-// uniform float2 uv_pixel_interval; // (1.0/uv_size.x, 1.0/uv_size.y)
-// uniform float rand_f; // a random float between 0.0 and 1.0, changes per frame
-//
-// VertData is implicitly defined as:
-// struct VertData {
-//     float4 pos : POSITION; // Clip space position
-//     float2 uv : TEXCOORD0;  // Texture coordinates
-// };
-
+// --- Uniforms ---
 uniform float particle_density <
     string label = "Particle Density";
     string widget_type = "slider";
@@ -216,6 +202,23 @@ uniform float onion_ring_animation_speed <
     string group = "Artifact Settings";
 > = 0.0;
 
+// --- Standard Uniforms & Structs ---
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float elapsed_time;
+uniform float2 uv_size;
+uniform float2 uv_pixel_interval;
+
+sampler_state textureSampler {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv  : TEXCOORD0;
+};
 
 // --- Helper functions ---
 
@@ -306,6 +309,14 @@ float get_shape_mask(float2 uv_pixel_centered_aspect, float2 particle_center_asp
     return saturate(base_shape_alpha); // Ensure final mask is clamped
 }
 
+// --- Vertex Shader ---
+VertData VSDefault(VertData v_in)
+{
+    VertData v_out;
+    v_out.pos = mul(v_in.pos, ViewProj);
+    v_out.uv = v_in.uv;
+    return v_out;
+}
 
 // --- Pixel Shader ---
 float4 mainImage(VertData v_in) : TARGET
@@ -466,4 +477,13 @@ float4 mainImage(VertData v_in) : TARGET
     }
 
     return saturate(blended_output_color);
+}
+
+technique Draw
+{
+    pass
+    {
+        vertex_shader = VSDefault(v_in);
+        pixel_shader  = mainImage(v_in);
+    }
 }

@@ -123,7 +123,7 @@ uniform float CoreGlowIntensity <
 uniform bool CoreGlowUsesRayColor <
     string label = "✨ Core Glow Uses Ray Color";
     string group = "Ray Appearance";
-    string description = "If true, core glow is tinted with Ray Color, else it brightens the source color or uses white.";
+    string description = "If true, core glow is tinted with Ray Color, else itBrightens the source color or uses white.";
 > = false;
 
 uniform float RayEdgeSoftness <
@@ -134,7 +134,33 @@ uniform float RayEdgeSoftness <
     float minimum = 0.5; float maximum = 5.0; float step = 0.1;
 > = 1.5;
 
+// --- Standard Uniforms & Structs ---
+uniform float4x4 ViewProj;
+uniform texture2d image;
+uniform float elapsed_time;
+uniform float2 uv_pixel_interval;
 
+sampler_state textureSampler {
+    Filter   = Linear;
+    AddressU = Clamp;
+    AddressV = Clamp;
+};
+
+struct VertData {
+    float4 pos : POSITION;
+    float2 uv  : TEXCOORD0;
+};
+
+// --- Vertex Shader ---
+VertData VSDefault(VertData v_in)
+{
+    VertData v_out;
+    v_out.pos = mul(v_in.pos, ViewProj);
+    v_out.uv = v_in.uv;
+    return v_out;
+}
+
+// --- Pixel Shader ---
 float4 mainImage(VertData v_in) : TARGET {
     float4 currentPixelColor = image.Sample(textureSampler, v_in.uv);
     float brightness = dot(currentPixelColor.rgb, float3(0.299, 0.587, 0.114));
@@ -261,4 +287,13 @@ float4 mainImage(VertData v_in) : TARGET {
     }
     
     return baseOutputColor;
+}
+
+technique Draw
+{
+    pass
+    {
+        vertex_shader = VSDefault(v_in);
+        pixel_shader  = mainImage(v_in);
+    }
 }
