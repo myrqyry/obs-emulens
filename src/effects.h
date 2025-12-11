@@ -1,6 +1,6 @@
 /*
  * src/effects.h
- * Refactored for Data-Driven Architecture
+ * Refactored for Data-Driven Architecture & Hot-Reloading
  */
 
 #pragma once

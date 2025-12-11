@@ -1,6 +1,6 @@
 /*
  * src/effects.c
- * Implements Generic Data-Driven Effect Logic
+ * Implements Generic Data-Driven Effect Logic with Hot-Reloading
  */
 
 #include "effects.h"
@@ -142,15 +142,15 @@ static bool is_valid_shader_path(const char *path) {
 
 // --- 5. Generic Implementation ---
 
-#include <graphics/effect.h> // Ensure we have effect definitions
+#include <graphics/effect.h> 
 
+// Load and compile shader from file
 gs_effect_t *load_shader_effect(const char *shader_path) {
     if (!is_valid_shader_path(shader_path)) {
         blog(LOG_ERROR, "Invalid shader path: %s", shader_path);
         return NULL;
     }
     
-    // Explicitly find the module file using the project name "obs-emulens"
     obs_module_t *module = obs_get_module("obs-emulens");
     char *full_path = obs_find_module_file(module, shader_path);
 
@@ -169,6 +169,31 @@ gs_effect_t *load_shader_effect(const char *shader_path) {
     return effect;
 }
 
+// Bind standard and dynamic parameters to the effect instance
+void bind_effect_parameters(effect_data_t *ed) {
+    if (!ed || !ed->effect || !ed->info) return;
+
+    // Bind Standard Uniforms
+    ed->param_image = gs_effect_get_param_by_name(ed->effect, "image");
+    ed->param_uv_size = gs_effect_get_param_by_name(ed->effect, "uv_size");
+    ed->param_uv_pixel_interval = gs_effect_get_param_by_name(ed->effect, "uv_pixel_interval");
+    ed->param_elapsed_time = gs_effect_get_param_by_name(ed->effect, "elapsed_time");
+
+    // Dynamic Parameter Binding
+    if (ed->info->num_params > 0) {
+        // Re-allocate handles if needed (e.g. on reload)
+        if (ed->param_handles) bfree(ed->param_handles);
+        ed->param_handles = bzalloc(sizeof(gs_eparam_t*) * ed->info->num_params);
+
+        for (size_t i = 0; i < ed->info->num_params; i++) {
+            ed->param_handles[i] = gs_effect_get_param_by_name(ed->effect, ed->info->params[i].name);
+            if (!ed->param_handles[i]) {
+                blog(LOG_WARNING, "[%s] Warning: Shader parameter '%s' not found in shader", ed->info->name, ed->info->params[i].name);
+            }
+        }
+    }
+}
+
 void *generic_create(obs_data_t *settings, obs_source_t *source) {
     const effect_info_t *info = obs_source_get_type_data(source);
     
@@ -185,22 +210,9 @@ void *generic_create(obs_data_t *settings, obs_source_t *source) {
         return NULL;
     }
 
-    // Bind Standard Uniforms
-    ed->param_image = gs_effect_get_param_by_name(ed->effect, "image");
-    ed->param_uv_size = gs_effect_get_param_by_name(ed->effect, "uv_size");
-    ed->param_uv_pixel_interval = gs_effect_get_param_by_name(ed->effect, "uv_pixel_interval");
-    ed->param_elapsed_time = gs_effect_get_param_by_name(ed->effect, "elapsed_time");
-
-    // Dynamic Parameter Binding
-    if (info->num_params > 0) {
-        ed->param_handles = bzalloc(sizeof(gs_eparam_t*) * info->num_params);
-        for (size_t i = 0; i < info->num_params; i++) {
-            ed->param_handles[i] = gs_effect_get_param_by_name(ed->effect, info->params[i].name);
-            if (!ed->param_handles[i]) {
-                blog(LOG_WARNING, "[%s] Warning: Shader parameter '%s' not found in shader", info->name, info->params[i].name);
-            }
-        }
-    }
+    // Use the central binding helper
+    bind_effect_parameters(ed);
+    
     obs_leave_graphics();
 
     obs_source_update(source, settings);
@@ -366,5 +378,6 @@ obs_properties_t *generic_properties(void *data) {
                 break;
         }
     }
+
     return props;
 }
