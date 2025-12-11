@@ -1,0 +1,40 @@
+{
+  "version": 8,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-mint-debug",
+      "displayName": "Linux Mint Debug",
+      "inherits": ["ubuntu-x86_64"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "linux-mint-release",
+      "displayName": "Linux Mint Release",
+      "inherits": ["ubuntu-x86_64"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-mint-debug",
+      "configurePreset": "linux-mint-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "linux-mint-release",
+      "configurePreset": "linux-mint-release",
+      "configuration": "RelWithDebInfo"
+    }
+  ]
+}

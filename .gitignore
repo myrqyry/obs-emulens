@@ -1,26 +1,19 @@
-# Exclude everything
-/*
+# Build artifacts
+build/
+build_*/
+.cache/
+compile_commands.json
 
-# Except for default project files
-!/.github
-!/build-aux
-!/cmake
-!/data
-!/src
-!.clang-format
-!.gersemirc
-!.gitignore
-!buildspec.json
-!CMakeLists.txt
-!CMakePresets.json
-!LICENSE
-!README.md
+# IDE Settings
+.vscode/
+.idea/
+*.swp
 
-# Exclude lock files
-*.lock.json
-
-# Exclude macOS legacy resource forks
+# OS System Files
 .DS_Store
 
-# Exclude CMake build number cache
-/cmake/.CMakeBuildNumber
+# Generated Files
+repomix-output.md
+
+# Lock files (if unwanted, though usually keep package-lock)
+*.lock.json
