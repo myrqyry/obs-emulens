@@ -90,6 +90,7 @@ typedef struct {
     // Standard Uniforms
     gs_eparam_t *param_image;
     gs_eparam_t *param_uv_size;
+    gs_eparam_t *param_uv_pixel_interval;
     gs_eparam_t *param_elapsed_time;
 
     // Dynamic Parameter Handles (matches index of info->params)
