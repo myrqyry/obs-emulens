@@ -310,17 +310,42 @@ void generic_render(void *data, gs_effect_t *effect) {
         if (ed->param_uv_size) {
             struct vec2 uv;
             vec2_set(&uv, width, height);
-            gs_effect_set_vec2(ed->param_uv_size, &uv);
+            
+            enum gs_shader_param_type type = ed->param_uv_size->type;
+            if (type == GS_SHADER_PARAM_VEC2) {
+                gs_effect_set_vec2(ed->param_uv_size, &uv);
+            } else if (type == GS_SHADER_PARAM_VEC4) {
+                 struct vec4 uv4;
+                 uv4.x = width; uv4.y = height;
+                 uv4.z = 1.0f / width; uv4.w = 1.0f / height;
+                 gs_effect_set_vec4(ed->param_uv_size, &uv4);
+            }
         }
         
         if (ed->param_uv_pixel_interval) {
-            struct vec2 interval;
-            vec2_set(&interval, 1.0f / width, 1.0f / height);
-            gs_effect_set_vec2(ed->param_uv_pixel_interval, &interval);
+            struct vec4 interval;
+            interval.x = 1.0f / width;
+            interval.y = 1.0f / height;
+            interval.z = width;
+            interval.w = height;
+            
+            enum gs_shader_param_type type = ed->param_uv_pixel_interval->type;
+            if (type == GS_SHADER_PARAM_VEC4) {
+                gs_effect_set_vec4(ed->param_uv_pixel_interval, &interval);
+            } else if (type == GS_SHADER_PARAM_VEC2) {
+                struct vec2 interval2;
+                vec2_set(&interval2, interval.x, interval.y);
+                gs_effect_set_vec2(ed->param_uv_pixel_interval, &interval2);
+            }
         }
 
         if (ed->param_elapsed_time) {
-             gs_effect_set_float(ed->param_elapsed_time, ed->elapsed_time);
+            enum gs_shader_param_type type = ed->param_elapsed_time->type;
+            if (type == GS_SHADER_PARAM_FLOAT) {
+                 gs_effect_set_float(ed->param_elapsed_time, ed->elapsed_time);
+            } else if (type == GS_SHADER_PARAM_INT) {
+                 gs_effect_set_int(ed->param_elapsed_time, (int)ed->elapsed_time);
+            }
         }
         
         gs_technique_t *tech = gs_effect_get_technique(ed->effect, "Draw");
