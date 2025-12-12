@@ -3,7 +3,7 @@
  */
 
 #include <obs-module.h>
-#include "effects.h"
+#include "effects/effect-registry.h"
 #include "plugin-support.h"
 
 OBS_DECLARE_MODULE()

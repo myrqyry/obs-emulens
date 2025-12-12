@@ -159,7 +159,91 @@ float4 mainImage(VertData v_in) : TARGET
     float preset_blur_amount_factor = 1.0; // Multiplier for blurAmount
     float preset_blur_speed_factor = 1.0;  // Multiplier for blurSpeed
 
-    if (preset == 99) { // Custom
+    // Define preset constants for clarity
+    const int PRESET_STABLE = 0;
+    const int PRESET_BREATHING = 1;
+    const int PRESET_HANDHELD = 2;
+    const int PRESET_SHAKY = 3;
+    const int PRESET_EARTHQUAKE = 4;
+    const int PRESET_CUSTOM = 99;
+
+    // Validate and clamp preset value
+    int validpreset = clamp(preset, 0, 4);
+    if (preset == PRESET_CUSTOM) {
+        validpreset = PRESET_CUSTOM;
+    }
+
+    if (validpreset != PRESET_CUSTOM) {
+        switch (validpreset) {
+            case PRESET_STABLE:
+                current_pos_amount = 0.0005;
+                current_rot_amount_deg = 0.05;
+                current_zoom_amount = 0.000;
+                current_pos_speed = 0.2;
+                current_rot_speed = 0.15;
+                current_zoom_speed = 0.1;
+                preset_blur_amount_factor = 0.1;
+                preset_blur_speed_factor = 0.5;
+                break;
+                
+            case PRESET_BREATHING:
+                current_pos_amount = 0.0015;
+                current_rot_amount_deg = 0.15;
+                current_zoom_amount = 0.002;
+                current_pos_speed = 0.4;
+                current_rot_speed = 0.3;
+                current_zoom_speed = 0.25;
+                preset_blur_amount_factor = 0.3;
+                preset_blur_speed_factor = 0.8;
+                break;
+                
+            case PRESET_HANDHELD:
+                current_pos_amount = 0.005;
+                current_rot_amount_deg = 0.5;
+                current_zoom_amount = 0.01;
+                current_pos_speed = 1.5;
+                current_rot_speed = 1.0;
+                current_zoom_speed = 0.8;
+                preset_blur_amount_factor = 1.0;
+                preset_blur_speed_factor = 1.0;
+                break;
+                
+            case PRESET_SHAKY:
+                current_pos_amount = 0.015;
+                current_rot_amount_deg = 1.5;
+                current_zoom_amount = 0.02;
+                current_pos_speed = 5.0;
+                current_rot_speed = 4.0;
+                current_zoom_speed = 3.0;
+                preset_blur_amount_factor = 1.2;
+                preset_blur_speed_factor = 1.2;
+                break;
+                
+            case PRESET_EARTHQUAKE:
+                current_pos_amount = 0.05;
+                current_rot_amount_deg = 5.0;
+                current_zoom_amount = 0.05;
+                current_pos_speed = 10.0;
+                current_rot_speed = 8.0;
+                current_zoom_speed = 6.0;
+                preset_blur_amount_factor = 1.5;
+                preset_blur_speed_factor = 1.5;
+                break;
+                
+            default:
+                // Fallback to handheld preset
+                current_pos_amount = 0.005;
+                current_rot_amount_deg = 0.5;
+                current_zoom_amount = 0.01;
+                current_pos_speed = 1.5;
+                current_rot_speed = 1.0;
+                current_zoom_speed = 0.8;
+                preset_blur_amount_factor = 1.0;
+                preset_blur_speed_factor = 1.0;
+                break;
+        }
+    } else {
+        // Custom preset
         current_pos_amount = positionAmount * masterIntensity;
         current_rot_amount_deg = rotationAmount * masterIntensity;
         current_zoom_amount = zoomAmount * masterIntensity;
@@ -167,33 +251,6 @@ float4 mainImage(VertData v_in) : TARGET
         current_rot_speed = rotationSpeed;
         current_zoom_speed = zoomSpeed;
         // For custom, blurAmount and blurSpeed are used directly
-    } else {
-        // Define preset values explicitly
-        if (preset == 0) { // Stable
-            current_pos_amount = 0.0005; current_rot_amount_deg = 0.05; current_zoom_amount = 0.000;
-            current_pos_speed = 0.2; current_rot_speed = 0.15; current_zoom_speed = 0.1;
-            preset_blur_amount_factor = 0.1; preset_blur_speed_factor = 0.5; // Less blur for stable
-        } else if (preset == 1) { // Breathing
-            current_pos_amount = 0.0015; current_rot_amount_deg = 0.15; current_zoom_amount = 0.002;
-            current_pos_speed = 0.4; current_rot_speed = 0.3; current_zoom_speed = 0.25;
-            preset_blur_amount_factor = 0.3; preset_blur_speed_factor = 0.8;
-        } else if (preset == 2) { // Handheld (Default)
-            current_pos_amount = 0.005; current_rot_amount_deg = 0.5; current_zoom_amount = 0.01;
-            current_pos_speed = 1.5; current_rot_speed = 1.0; current_zoom_speed = 0.8;
-            preset_blur_amount_factor = 1.0; preset_blur_speed_factor = 1.0;
-        } else if (preset == 3) { // Shaky
-            current_pos_amount = 0.015; current_rot_amount_deg = 1.5; current_zoom_amount = 0.02;
-            current_pos_speed = 5.0; current_rot_speed = 4.0; current_zoom_speed = 3.0;
-            preset_blur_amount_factor = 1.2; preset_blur_speed_factor = 1.2; // More blur for shaky
-        } else if (preset == 4) { // Earthquake
-            current_pos_amount = 0.05; current_rot_amount_deg = 5.0; current_zoom_amount = 0.05;
-            current_pos_speed = 10.0; current_rot_speed = 8.0; current_zoom_speed = 6.0;
-            preset_blur_amount_factor = 1.5; preset_blur_speed_factor = 1.5; // Even more blur
-        } else { // Fallback
-            current_pos_amount = 0.005; current_rot_amount_deg = 0.5; current_zoom_amount = 0.01;
-            current_pos_speed = 1.5; current_rot_speed = 1.0; current_zoom_speed = 0.8;
-            preset_blur_amount_factor = 1.0; preset_blur_speed_factor = 1.0;
-        }
     }
     float current_rot_amount_rad = radians(current_rot_amount_deg);
 

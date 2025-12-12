@@ -1,6 +1,6 @@
 /*
- * src/effects.h
- * Refactored for Data-Driven Architecture & Hot-Reloading
+ * src/core/effect-core.h
+ * Core definitions for the data-driven effect system
  */
 
 #pragma once
@@ -15,13 +15,6 @@
 #define MAX_EFFECT_NAME_LENGTH 64
 #define MAX_SHADER_PATH_LENGTH 256
 #define DEFAULT_ELAPSED_TIME_STEP 0.016f
-
-// Consistent error logging macros
-#define LOG_AND_RETURN_NULL(msg, ...) \
-	do { blog(LOG_ERROR, msg, ##__VA_ARGS__); return NULL; } while (0)
-
-#define LOG_AND_RETURN_VOID(msg, ...) \
-	do { blog(LOG_ERROR, msg, ##__VA_ARGS__); return; } while (0)
 
 #ifdef __cplusplus
 extern "C" {
@@ -105,20 +98,30 @@ typedef struct {
     // Dynamic Parameter Handles (index matches info->params index)
     gs_eparam_t **param_handles;
     
+    // Caching for dirty checks
+    float *cached_float_values;
+    int *cached_int_values;
+    bool *cached_bool_values;
+    uint32_t *cached_color_values;
+    
     float elapsed_time;
 } effect_data_t;
 
-// --- Exports ---
-extern const size_t num_effects;
-extern const effect_info_t *effects[];
-const char *get_effect_name(void *type_data);
+// --- Function Prototypes ---
 
-// Generic declarations for use in effect definitions
+// Lifecycle
 void *generic_create(obs_data_t *settings, obs_source_t *source);
 void generic_destroy(void *data);
-void generic_update(void *data, obs_data_t *settings);
 void generic_render(void *data, gs_effect_t *effect);
 void generic_tick(void *data, float seconds);
+
+// Shader Loading
+gs_effect_t *load_shader_effect(const char *shader_path);
+bool is_valid_shader_path(const char *path);
+
+// Parameter System
+void bind_effect_parameters(effect_data_t *ed);
+void generic_update(void *data, obs_data_t *settings);
 obs_properties_t *generic_properties(void *data);
 
 #ifdef __cplusplus

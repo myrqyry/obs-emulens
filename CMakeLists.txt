@@ -111,14 +111,23 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 configure_file(src/plugin-support.c.in src/plugin-support.c @ONLY)
 target_sources(${PROJECT_NAME} PRIVATE
     src/plugin-main.c
-    src/effects.c
-    src/effects.h
-	${CMAKE_CURRENT_BINARY_DIR}/src/plugin-support.c
+    src/core/effect-core.c
+    src/core/shader-loader.c
+    src/core/param-system.c
+    src/effects/effect-registry.c
+    src/effects/starburst/starburst.c
+    src/effects/lightleak/lightleak.c
+    src/effects/handheld/handheld.c
+    src/effects/bokeh/bokeh.c
+    src/effects/style_transfer/style_transfer.c
+    ${CMAKE_CURRENT_BINARY_DIR}/src/plugin-support.c
 )
 
 # Include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/effects
     ${OBS_INCLUDE_DIRS}
 )
 
