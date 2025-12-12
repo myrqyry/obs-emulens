@@ -7,11 +7,24 @@
 static const param_def_t handheld_params[] = {
     {"preset", "Preset", "0:Stable 1:Breath 2:Handheld 3:Shaky 4:Quake 99:Custom", PARAM_INT, {.i_val=2}, 0, 99, 1},
     {"masterIntensity", "Master Intensity", "Global strength multiplier", PARAM_FLOAT, {.f_val=1.0}, 0.0, 2.0, 0.05},
+    
+    // Custom Settings
+    {"positionAmount", "Position Amount", "Max screen offset", PARAM_FLOAT, {.f_val=0.005}, 0.0, 0.1, 0.001},
+    {"rotationAmount", "Rotation Amount", "Max rotation (degrees)", PARAM_FLOAT, {.f_val=0.5}, 0.0, 10.0, 0.1},
+    {"zoomAmount", "Zoom Amount", "Max zoom fluctuation", PARAM_FLOAT, {.f_val=0.01}, 0.0, 0.2, 0.001},
+    
     {"positionSpeed", "Pos Speed", "Position shake frequency", PARAM_FLOAT, {.f_val=1.5}, 0.1, 10.0, 0.1},
     {"rotationSpeed", "Rot Speed", "Rotation shake frequency", PARAM_FLOAT, {.f_val=1.0}, 0.1, 10.0, 0.1},
     {"zoomSpeed", "Zoom Speed", "Zoom breathing frequency", PARAM_FLOAT, {.f_val=0.8}, 0.1, 10.0, 0.1},
+    
+    // Focus & Blur
     {"enableDynamicBlur", "Motion Blur", "Enable dynamic motion blur", PARAM_BOOL, {.b_val=true}, 0, 0, 0},
-    {"blurAmount", "Blur Amount", "Strength of motion blur", PARAM_FLOAT, {.f_val=1.0}, 0.0, 5.0, 0.1}
+    {"blurAmount", "Blur Amount", "Strength of motion blur", PARAM_FLOAT, {.f_val=1.0}, 0.0, 5.0, 0.1},
+    {"blurSpeed", "Blur Speed", "Speed of blur fluctuation", PARAM_FLOAT, {.f_val=1.5}, 0.1, 10.0, 0.1},
+    {"staticBlurAmount", "Static Blur", "Constant blur amount", PARAM_FLOAT, {.f_val=0.0}, 0.0, 3.0, 0.05},
+    
+    // Edge Handling
+    {"edgeFeatherAmount", "Edge Feather", "Soften edges", PARAM_FLOAT, {.f_val=0.05}, 0.0, 0.25, 0.005}
 };
 
 static void handheld_defaults(obs_data_t *s) {

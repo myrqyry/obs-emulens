@@ -62,6 +62,8 @@ void generic_update(void *data, obs_data_t *settings) {
         
         bool param_changed = false;
 
+        PLUGIN_LOG_DEBUG("param-trace", "Update param '%s': type=%d", def->name, (int)type);
+
         switch (def->type) {
             case PARAM_FLOAT: {
                 double val = obs_data_get_double(settings, def->name);
@@ -83,8 +85,6 @@ void generic_update(void *data, obs_data_t *settings) {
                         ed->cached_int_values[i] = ival;
                         param_changed = true;
                      }
-                } else {
-                     // Log mismatch once? might spam.
                 }
                 break;
             }
@@ -115,8 +115,10 @@ void generic_update(void *data, obs_data_t *settings) {
                 bool val = obs_data_get_bool(settings, def->name);
                 
                 if (val != ed->cached_bool_values[i]) {
+                    PLUGIN_LOG_DEBUG("param-trace", "Bool Param '%s' -> %d (Shader Type: %d)", def->name, val, type);
                     if (type == GS_SHADER_PARAM_BOOL) {
-                        gs_effect_set_bool(handle, val);
+                        // Use set_int to match standard 4-byte bool expectation in GLSL/HLSL uniforms to verify size
+                        gs_effect_set_int(handle, val ? 1 : 0);
                     } else if (type == GS_SHADER_PARAM_INT) {
                         gs_effect_set_int(handle, val ? 1 : 0);
                     } else if (type == GS_SHADER_PARAM_FLOAT) {
